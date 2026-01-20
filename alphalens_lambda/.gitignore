@@ -1,0 +1,60 @@
+# =====================
+# Secrets / Env
+# =====================
+.env
+.env.*
+*.env
+
+# =====================
+# Python
+# =====================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.venv/
+venv/
+ENV/
+env/
+pip-wheel-metadata/
+
+# =====================
+# Jupyter / IPython
+# =====================
+.ipynb_checkpoints/
+
+# =====================
+# OS / Editor
+# =====================
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# =====================
+# Docker
+# =====================
+*.log
+docker-compose.override.yml
+
+# =====================
+# AWS / Lambda
+# =====================
+.aws/
+*.pem
+*.key
+
+# =====================
+# Build artifacts
+# =====================
+dist/
+build/
+*.egg-info/
+
+# =====================
+# Temporary files
+# =====================
+tmp/
+*.tmp
+*.swp
+# =====================

@@ -1,0 +1,28 @@
+FROM public.ecr.aws/lambda/python:3.12
+
+COPY app.py ${LAMBDA_TASK_ROOT}
+COPY requirements.txt .
+COPY .env .
+
+# 🔑 Upgrade pip AVANT install
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+
+CMD ["app.handler"]
+
+
+FROM python:3.12-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+ENV PYTHONUNBUFFERED=1
+
+CMD ["gunicorn", "app:app", \
+     "-k", "uvicorn.workers.UvicornWorker", \
+     "--workers", "4", \
+     "--bind", "0.0.0.0:8000"]
