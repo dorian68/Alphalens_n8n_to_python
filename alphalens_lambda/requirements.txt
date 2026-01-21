@@ -10,3 +10,9 @@ httpx
 pydantic
 python-dotenv
 supabase
+
+gunicorn
+uvicorn
+fastapi
+
+

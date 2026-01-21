@@ -32,7 +32,7 @@ TWELVE_DATA_API_KEY = os.environ["TWELVE_DATA_API_KEY"]
 SUPABASE_URL = os.environ["SUPABASE_URL"]
 SUPABASE_KEY = os.environ["SUPABASE_KEY"]
 
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+# supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 test_variable = ""
 
@@ -91,6 +91,7 @@ def supabase_update_job_status(state: dict) -> dict:
     """
 
     try:
+        supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
         body = state.get("body", {})
         job_id = body.get("job_id")
 
@@ -122,6 +123,7 @@ def supabase_update_job_status(state: dict) -> dict:
 
 def make_supabase_update_node(table: str, fields: dict, filter_key: str):
     start = time.time()
+    supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
     def node(state: dict) -> dict:
         body = state.get("body", {})
         value = body.get(filter_key)
@@ -1062,6 +1064,15 @@ def start_node(state: DirectionState) -> DirectionState:
 
 def start_trade_queued_node(state: DirectionState) -> DirectionState:
     return {}
+
+def get_supabase() -> Client:
+    supabase_url = os.environ.get("SUPABASE_URL")
+    supabase_key = os.environ.get("SUPABASE_KEY")
+
+    if not supabase_url or not supabase_key:
+        raise RuntimeError("Supabase env vars missing")
+
+    return create_client(supabase_url, supabase_key)
 
 from langgraph.prebuilt import ToolNode
 
