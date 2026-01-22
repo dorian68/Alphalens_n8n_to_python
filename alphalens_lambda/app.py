@@ -1513,6 +1513,23 @@ def build_trade_graph():
 
     return graph.compile()
 
+def extract_first_json(text: str) -> dict:
+    """
+    Extract and parse the first valid JSON object from a string.
+    Safe against:
+    - extra text before/after
+    - multiple concatenated JSON objects
+    """
+    decoder = json.JSONDecoder()
+    text = text.strip()
+
+    try:
+        obj, idx = decoder.raw_decode(text)
+        return obj
+    except json.JSONDecodeError as e:
+        raise ValueError(f"No valid JSON found: {e}") from e
+
+
 @app.post("/run")
 async def run_webhook(request: Request):
     """
@@ -1550,8 +1567,16 @@ async def run_webhook(request: Request):
             result = await build_run_graph().ainvoke(state)
 
         raw = result["output"]["final_answer"]
+
         clean = strip_json_fences(raw)
-        raw = json.loads(clean)
+        # parsed = json.loads(clean)
+        print("Raw LLM output:", raw)
+        print("****************************************")
+        print("Parsed LLM output:", raw)
+        raw = extract_first_json(raw)
+
+
+ 
 
         supabase_update_job_status(state,{ 
                 "job_id" : "NONE",
