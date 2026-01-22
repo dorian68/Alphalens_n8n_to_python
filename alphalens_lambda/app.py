@@ -94,6 +94,7 @@ def supabase_update_job_status(state: dict, payload: dict) -> dict:
     try:
         supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
         body = state.get("body", {})
+        print(f"body :{body}")
         job_id = body.get("job_id")
 
         if not job_id:
