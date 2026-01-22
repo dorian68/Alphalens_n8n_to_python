@@ -1550,7 +1550,13 @@ async def run_webhook(request: Request):
             result = await build_run_graph().ainvoke(state)
 
         raw = result["output"]["final_answer"]
-        supabase_update_job_status(state,raw)
+        supabase_update_job_status(state,{ 
+                "message" : { 
+                "status" : "done",
+                "job_id" : "NONE",
+                "message": {"content" : { "content": raw  }} }
+                })
+        
         # clean = strif_json_fences(raw)
         # parsed = json.loads(clean)
 
@@ -1559,7 +1565,18 @@ async def run_webhook(request: Request):
         return {
             "statusCode": 200,
             "headers": {"Content-Type": "application/json"},
-            "body": raw
+            "body": { 
+                "message" : { 
+                "status" : "done",
+                "job_id" : "NONE",
+                "message": {"content" : { "content": raw  }} }
+                },
+            "message": { 
+                "message" : { 
+                "status" : "done",
+                "job_id" : "NONE",
+                "message": {"content" : { "content": raw  }} }
+                }
         }
 
     except Exception as e:
