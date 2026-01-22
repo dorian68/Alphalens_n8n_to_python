@@ -85,7 +85,7 @@ def strip_json_fences(text: str) -> str:
     text = re.sub(r"```\s*(\{.*?\})\s*```", r"\1", text, flags=re.DOTALL)
     return text.strip()
 
-def supabase_update_job_status(state: dict) -> dict:
+def supabase_update_job_status(state: dict, payload: dict) -> dict: 
     """
     LangGraph node.
     Equivalent n8n Supabase 'update jobs' node.
@@ -104,7 +104,7 @@ def supabase_update_job_status(state: dict) -> dict:
             .table("jobs")
             .update({
                 "status": "pending",
-                "progress_message": "Reading the news"
+                "request_payload": payload,
             })
             .eq("id", job_id)
             .execute()
@@ -911,7 +911,7 @@ def final_synthesis_agent(state: DirectionState) -> DirectionState:
             model="llama-3.3-70b",
             stream=True,
             max_completion_tokens=65000,
-            temperature=1,
+            temperature=0.1,
             top_p=0.95
         )
 
@@ -1540,6 +1540,7 @@ async def run_webhook(request: Request):
             result = await build_run_graph().ainvoke(state)
 
         raw = result["output"]["final_answer"]
+        supabase_update_job_status(state,raw)
         # clean = strif_json_fences(raw)
         # parsed = json.loads(clean)
 
