@@ -103,7 +103,7 @@ def supabase_update_job_status(state: dict, payload: dict) -> dict:
             supabase
             .table("jobs")
             .update({
-                "status": "pending",
+                "status": "completed",
                 "request_payload": payload,
             })
             .eq("id", job_id)
