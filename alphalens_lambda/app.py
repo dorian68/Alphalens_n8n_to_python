@@ -495,7 +495,7 @@ def planner_trade_agent(state: DirectionState):
                         - If confidence < 0.5 or critical fields are missing, still return a payload and clearly flag risk.
 
                         Output:
-                        - JSON only. No markdown. No commentary.
+                        - Return RAW JSON only, no markdown, no quotes, UTF-8 safe
                         - Deterministic behavior.
 
                       """),
@@ -893,7 +893,7 @@ def final_synthesis_agent(state: DirectionState) -> DirectionState:
     attribution is needed, use generic phrasing while keeping the existing JSON structure unchanged 
     
     CRITICAL OUTPUT RULES:
-    - Return RAW JSON only
+    - Return RAW JSON only, no markdown, no quotes, UTF-8 safe
     - Do NOT wrap the JSON in markdown
     - Do NOT use ```json or ```
     - Do NOT add explanations or text before or after
@@ -1550,12 +1550,13 @@ async def run_webhook(request: Request):
             result = await build_run_graph().ainvoke(state)
 
         raw = result["output"]["final_answer"]
+        clean = strip_json_fences(raw)
+        raw = json.loads(clean)
+
         supabase_update_job_status(state,{ 
-                "message" : { 
-                "status" : "done",
                 "job_id" : "NONE",
                 "message": {"content" : { "content": raw  }} }
-                })
+                )
         
         # clean = strif_json_fences(raw)
         # parsed = json.loads(clean)
