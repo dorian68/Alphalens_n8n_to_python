@@ -1540,15 +1540,15 @@ async def run_webhook(request: Request):
             result = await build_run_graph().ainvoke(state)
 
         raw = result["output"]["final_answer"]
-        clean = strip_json_fences(raw)
-        parsed = json.loads(clean)
+        # clean = strif_json_fences(raw)
+        # parsed = json.loads(clean)
 
         end = time.time()
         print(f"Total Lambda execution completed in {end - start:.2f} seconds.")
         return {
             "statusCode": 200,
             "headers": {"Content-Type": "application/json"},
-            "body": json.dumps(parsed)
+            "body": raw
         }
 
     except Exception as e:
