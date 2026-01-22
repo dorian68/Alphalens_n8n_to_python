@@ -890,6 +890,14 @@ def final_synthesis_agent(state: DirectionState) -> DirectionState:
 
     Do not mention or reveal any third-party data vendors or platforms ( finnhub twelve, data, tradingview) when 
     attribution is needed, use generic phrasing while keeping the existing JSON structure unchanged 
+    
+    CRITICAL OUTPUT RULES:
+    - Return RAW JSON only
+    - Do NOT wrap the JSON in markdown
+    - Do NOT use ```json or ```
+    - Do NOT add explanations or text before or after
+    - The first character MUST be '{{'
+    - The last character MUST be '}}'
 
     """
 
