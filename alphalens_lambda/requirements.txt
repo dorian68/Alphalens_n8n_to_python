@@ -14,5 +14,5 @@ supabase
 gunicorn
 uvicorn
 fastapi
-
+cerebras_cloud_sdk
 

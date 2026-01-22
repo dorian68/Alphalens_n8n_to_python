@@ -22,7 +22,8 @@ COPY . .
 
 ENV PYTHONUNBUFFERED=1
 
-CMD ["gunicorn", "app:app", \
-     "-k", "uvicorn.workers.UvicornWorker", \
-     "--workers", "4", \
-     "--bind", "0.0.0.0:8000"]
+CMD [ "gunicorn", "app:app", \
+  "-k", "uvicorn.workers.UvicornWorker", "-w", "4", "-b", "0.0.0.0:9000", \
+  "--log-level", "debug", "--access-logfile", "-", "--error-logfile", "-" \
+]
+
