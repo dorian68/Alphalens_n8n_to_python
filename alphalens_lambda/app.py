@@ -1570,13 +1570,8 @@ async def run_webhook(request: Request):
 
         clean = strip_json_fences(raw)
         # parsed = json.loads(clean)
-        print("Raw LLM output:", raw)
-        print("****************************************")
-        print("Parsed LLM output:", raw)
         raw = extract_first_json(raw)
-
-
- 
+        print("Parsed LLM output:", raw)
 
         supabase_update_job_status(state,{ 
                 "job_id" : "NONE",
