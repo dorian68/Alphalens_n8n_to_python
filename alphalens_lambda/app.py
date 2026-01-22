@@ -115,11 +115,12 @@ def supabase_update_job_status(state: dict, payload: dict) -> dict:
             "job_id": job_id,
             "row_count": len(response.data or [])
         }
-
+        print(f"Supabase update successful for job_id :{job_id} - pushed payload {payload}")
         return state
 
     except Exception as e:
         state["error"] = f"Supabase update failed: {str(e)}"
+        print(f"error for job_id :{job_id} - {state["error"]}")
         return state
 
 def make_supabase_update_node(table: str, fields: dict, filter_key: str):
