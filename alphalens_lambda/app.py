@@ -21,16 +21,17 @@ import operator
 from supabase import create_client, Client
 from fastapi import FastAPI, Request, HTTPException
 from dotenv import load_dotenv
+from cerebras.cloud.sdk import Cerebras
 
 
 load_dotenv()
 app = FastAPI(title="Direction AI Backend")
 
-
 OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
 TWELVE_DATA_API_KEY = os.environ["TWELVE_DATA_API_KEY"]
 SUPABASE_URL = os.environ["SUPABASE_URL"]
 SUPABASE_KEY = os.environ["SUPABASE_KEY"]
+CEREBRAS_API_KEY = os.environ["CEREBRAS_API_KEY"]
 
 # supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
@@ -225,6 +226,69 @@ attribution is needed, use generic phrasing while keeping the existing JSON stru
 """
 
 async def data_collection_llm_agent(state: DirectionState) -> dict:
+    """
+    LangGraph node.
+    Deterministic fetch + LLM reasoning.
+    """
+    start = time.time()
+    question = state["body"]["question"]
+
+    # 1️⃣ Fetch data (tool, deterministic)
+    articles = await fetch_finnhub_news_last_30d()
+
+    # if not articles:
+    #     return {"macro_insight": "no fresh institutional data available"}
+
+    # 2️⃣ LLM reasoning (agent cognition)
+
+    user_prompt = f"""
+Question:
+{question}
+
+ARTICLES:
+{articles}
+"""
+
+    client = Cerebras(
+        # This is the default and can be omitted
+        api_key=os.environ.get("CEREBRAS_API_KEY")
+    )
+
+    try:
+        stream = client.chat.completions.create(
+            messages=[
+                {
+                    "role": "system",
+                    "content": SYSTEM_PROMPT_DATA_COLLECTION
+                },
+                            {
+                    "role": "user",
+                    "content": user_prompt
+                }
+            ],
+            model="llama-3.3-70b",
+            stream=True,
+            max_completion_tokens=65000,
+            temperature=1,
+            top_p=0.95
+        )
+
+        res = ""
+        for chunk in stream:
+            # print(chunk.choices[0].delta.content or "", end="")
+            res += chunk.choices[0].delta.content or ""
+
+    except Exception as e:
+        error_reason = f"LLM invocation failed: {str(e)}"
+
+    end = time.time()
+    print(f"Data Collection LLM Agent completed in {end - start:.2f} seconds.")
+    # print("Data Collection LLM Agent response:", res)
+    return {
+        "articles": res
+    }
+
+async def data_collection_llm_agent_dev(state: DirectionState) -> dict:
     """
     LangGraph node.
     Deterministic fetch + LLM reasoning.
@@ -711,6 +775,208 @@ Use this information to produce structured trade setups as per your system promp
 def final_synthesis_agent(state: DirectionState) -> DirectionState:
     start = time.time()
 
+    resp: Optional[Any] = None
+    error_reason: Optional[str] = None
+    res: Optional[str] = None 
+
+    client = Cerebras(
+        # This is the default and can be omitted
+        api_key=os.environ.get("CEREBRAS_API_KEY")
+    )
+
+    system_prompt = f"""
+
+    Today’s date is: { today_iso } and You are a senior FX/macro strategist at a top-tier macro research firm with WEB BROWSING ENABLED.  
+
+    Your mandate is THREE-FOLD in a SINGLE OUTPUT:  
+
+    1. **Market Data Collection**  
+        TOOL RESPONSE MESSAGE HISTORY:
+        {state.get("messages")}
+    ⚠️ Remember: **all this market data is contextual metadata. The only mandatory final output is the `content` field.**
+
+    2. **Strategist Report Construction (Weekly Outlook)**  
+    - Use Partner institutional insights (ABCG RESEARCH) as foundation. Expand clearly.  
+    - Complement with contextual news discovered via Perplexity, but cite only the original publishers.  
+    - **Tone must be institutional, structured, confident (Goldman Sachs / JPMorgan style).**  
+    - **Content base** → Anchor in Partner Research. Expand clearly.  
+    - **News complement** → Enrich with news (discovered via Perplexity) but always cite only the original publishers.  
+
+    - Mandatory structure:  
+
+    ---
+
+    Executive Summary  
+    {{2–3 sentences}}  
+
+    Fundamental Analysis  
+    {{Narrative + bullets}}  
+
+    Directional Bias  
+    {{Bullish/Bearish/Neutral}} 
+    Confidence: {{XX}}%  
+
+    Key Levels  
+    Support  
+    {{level1}}  
+    {{level2}}  
+    Resistance  
+    {{level1}}  
+    {{level2}}  
+    
+    AI Insights Breakdown  
+    Toggle GPT  
+    {{GPT narrative}} 
+
+    Toggle Curated  
+    {{Institutional view}}  
+    ---  
+
+    3. **Fundamentals Enrichment**  
+    - All macroeconomic fundamentals (releases, actual, consensus, previous, timestamps) must come exclusively from the Finnhub Economic Calendar API.  
+    - If an event is not present in Finnhub, mark it `"Unavailable"`.  
+    - Perplexity or other news sources may only be used for qualitative context (commentary, sentiment), never for datapoints.
+    - Always include: indicator, actual, consensus, previous, release timestamp, checked_at.  
+    - If web access fails, add `"warning": "web access to FF/TE unavailable"`.  
+    - **Enriched note must be the base_report enriched with:**  
+        - inline numeric clarifications,  
+        - appended sections: Fundamentals, Rate Differentials, Positioning, Balance of Payments, Central Bank Pricing, Sentiment Drivers, Event Watch.  
+    - ⚠️ **This enriched strategist note must always be placed in the `content` field.  
+        The `content` field is the one and only mandatory narrative output.  
+        All other fields (request, market_data, meta, base_report, fundamentals, citations_news) are supporting context and traceability only.**
+
+    ---
+
+    ## OUTPUT RULES
+
+    - Produce a single JSON
+
+    ⚠️ Important: The list of collected_intervals and series timeslots above is only an example.  
+    Always decide dynamically which intervals to collect depending on the user’s query and trading horizon.  
+    Do not fetch redundant data if it is not required.  
+
+    ⚠️ Critical: The field `content` must always contain the **final enriched strategist note** and be at the VERY ROOT OF THE JSON OUTPUT.  
+    This is the **main output of your work**.  
+    All other fields are optional context, metadata, and traceability, but `content` is the only mandatory narrative output.  
+
+    Every field must exist in the JSON (if data is missing, use empty string, empty array, or `"Unavailable"`).  
+    Return only JSON, no free text.  
+
+    ---
+    ⚠️ Temporal Truth Rule:  
+    At any point in the reasoning, the authoritative state of macroeconomic fundamentals is the Finnhub Economic Calendar snapshot provided at runtime ( see below )  
+    This snapshot reflects the truth of the economic environment at today’s date { today_iso }.  
+    All strategist reasoning must align strictly with this snapshot, treating it as the ground truth of the economy at time T.  
+    If any discrepancy arises between other sources and Finnhub, Finnhub always prevails.
+
+    ## INPUTS
+
+    - Perplexity discovery: {state.get("articles")} 
+    - Partner research: {json.dumps(state.get("abcg_research"), ensure_ascii=False)}
+    - User query: { (state["body"].get("question") or "").strip() }
+    - Finnhub economic calendar : || {json.dumps(state.get("economic_calendar_agent"), ensure_ascii=False)} ||
+
+    ---
+
+
+    ## CRITICAL RULES
+
+    - Market data → ONLY Twelve Data (valid intervals only).  
+    - Fundamentals → ONLY ForexFactory/TradingEconomics.  
+    - News → ONLY original publishers.  
+    - Ranges 3d/5d must always be computed locally from 1day data (never API calls).  
+    - Missing sections or invalid JSON will invalidate your output.  
+
+    Do not mention or reveal any third-party data vendors or platforms ( finnhub twelve, data, tradingview) when 
+    attribution is needed, use generic phrasing while keeping the existing JSON structure unchanged 
+
+    """
+
+    user_prompt = f"""
+    {(state["body"].get("question") or "").strip()}
+    """
+
+    try:
+        stream = client.chat.completions.create(
+            messages=[
+                {
+                    "role": "system",
+                    "content": system_prompt
+                },
+                            {
+                    "role": "user",
+                    "content": user_prompt
+                }
+            ],
+            model="llama-3.3-70b",
+            stream=True,
+            max_completion_tokens=65000,
+            temperature=1,
+            top_p=0.95
+        )
+
+        res = ""
+        for chunk in stream:
+            # print(chunk.choices[0].delta.content or "", end="")
+            res += chunk.choices[0].delta.content or ""
+
+    except Exception as e:
+        error_reason = f"LLM invocation failed: {str(e)}"
+
+    end = time.time()
+    # print("remember user s question was :", (state["body"].get("question") or "").strip())
+    print(f"Final Synthesis Agent completed in {end - start:.2f} seconds.")
+
+    # -----------------------------
+    # 🛑 CASE 1 — Hard failure
+    # -----------------------------
+    if res is None:
+        print("⚠️ Final agent LLM invocation failed")
+        return {
+            "output": {
+                "final_answer": "Unavailable",
+                "confidence_note": "LLM call failed",
+                "error": error_reason,
+            }
+        }
+
+    # -----------------------------
+    # 🛑 CASE 2 — Tool call only
+    # -----------------------------
+
+    # -----------------------------
+    # 🛑 CASE 3 — Empty content
+    # -----------------------------
+    content = (res or "").strip()
+    if not content:
+        print("⚠️ Empty LLM content")
+
+        return {
+            "output": {
+                "final_answer": "Unavailable",
+                "confidence_note": "Empty LLM response",
+            }
+        }
+
+    # -----------------------------
+    # ✅ CASE 4 — Normal path
+    # -----------------------------
+
+    return {
+        "output": {
+            "final_answer": content.strip(),
+            "confidence_note": (
+                "Partner research unavailable"
+                if isinstance(state.get("abcg_research"), dict)
+                and state["abcg_research"].get("status") == "unavailable"
+                else "Partner research integrated"
+            )
+        }
+    }
+
+def final_synthesis_agent_dev(state: DirectionState) -> DirectionState:
+    start = time.time()
+
     llm = ChatOpenAI(
         model="gpt-4.1-mini",
         temperature=0
@@ -841,6 +1107,7 @@ attribution is needed, use generic phrasing while keeping the existing JSON stru
         error_reason = f"LLM invocation failed: {str(e)}"
 
     end = time.time()
+    # print("remember user s question was :", (state["body"].get("question") or "").strip())
     print(f"Final Synthesis Agent completed in {end - start:.2f} seconds.")
 
     # -----------------------------
@@ -1162,14 +1429,14 @@ def get_direction_agent():
 def build_run_graph():
     graph = StateGraph(DirectionState)
 
-    supabase_reading_news = make_supabase_update_node(
-        table="jobs",
-        fields={
-            "status": "pending",
-            "progress_message": "Reading the news"
-        },
-        filter_key="job_id"
-    )
+    # supabase_reading_news = make_supabase_update_node(
+    #     table="jobs",
+    #     fields={
+    #         "status": "pending",
+    #         "progress_message": "Reading the news"
+    #     },
+    #     filter_key="job_id"
+    # )
 
     graph.add_node("start", start_node)
     graph.add_node("fanout", lambda s: s)
@@ -1179,7 +1446,7 @@ def build_run_graph():
     graph.add_node("planner", planner_agent)
     graph.add_node("tools", ToolNode([twelve_data_time_series]))
     graph.add_node("final", final_synthesis_agent)
-    graph.add_node("supabase_reading_news", supabase_reading_news)
+    # graph.add_node("supabase_reading_news", supabase_reading_news)
 
     # router
     graph.set_entry_point("start")
@@ -1201,14 +1468,14 @@ def build_run_graph():
 def build_trade_graph():
     graph = StateGraph(DirectionState)
 
-    supabase_reading_news = make_supabase_update_node(
-        table="jobs",
-        fields={
-            "status": "pending",
-            "progress_message": "Reading the news"
-        },
-        filter_key="job_id"
-    )
+    # supabase_reading_news = make_supabase_update_node(
+    #     table="jobs",
+    #     fields={
+    #         "status": "pending",
+    #         "progress_message": "Reading the news"
+    #     },
+    #     filter_key="job_id"
+    # )
     graph.add_node("start", start_trade_queued_node)
     graph.add_node("fanout", lambda s: s)
     graph.add_node("data_collection_llm", data_collection_llm_agent)
@@ -1217,7 +1484,7 @@ def build_trade_graph():
     graph.add_node("planner", planner_trade_agent)
     graph.add_node("tools", ToolNode([forecast_aws_api]))
     graph.add_node("final", generate_trade_agent)
-    graph.add_node("supabase_reading_news", supabase_reading_news)
+    # graph.add_node("supabase_reading_news", supabase_reading_news)
 
     # router
     graph.set_entry_point("start")
