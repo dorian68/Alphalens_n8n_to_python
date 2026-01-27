@@ -334,13 +334,14 @@ def supabase_update_job_status(state: dict, response_payload: dict) -> dict:
             supabase
             .table("jobs")
             .update({
-                "status": "pending",
+                "status": "completed",
                 "progress_message": "Reading the news",
                 "response_payload": response_payload,
             })
             .eq("id", job_id)
             .execute()
         )
+        print(f"supabase insert's response: {response}")
 
         state["supabase"] = {
             "updated": True,
@@ -1001,9 +1002,9 @@ async def twelve_data_time_series(
 def generate_trade_agent(state: DirectionState) -> DirectionState:
     start = time.time()
     # print(f"from Generating trade agent {json.dumps(state.get('forecast_data'), indent=2)}", state)
-    # print("----------------------________________------------------------")
-    # print(state)
-    # print("----------------------________________------------------------")
+    print("----------------------FORECAST_DATA------------------------")
+    print(json.dumps(state.get("forecast_data"), indent=2))
+    print("----------------------FORECAST_DATA------------------------")
 
 
     llm = ChatOpenAI(
@@ -1784,7 +1785,10 @@ async def run_webhook(request: Request):
 
         if body.get("mode", "") == "trade_generation":
             result = await build_trade_graph().ainvoke(state)
-            raw = result["trade_generation_output"]["final_answer"]
+            raw = result["trade_generation_output"]
+            print("*********************trade_generation_output**********************")
+            print(raw)
+            print("*********************trade_generation_output**********************")
         else:
             result = await build_run_graph().ainvoke(state)
             raw = result["output"]["final_answer"]
