@@ -1194,6 +1194,25 @@ def final_synthesis_agent(state: DirectionState) -> DirectionState:
 
     parser = PydanticOutputParser(pydantic_object=StrategistOutput)
 
+    tool_call_id_to_name = {}
+    print("extract has been called")
+
+        # 1️⃣ récupérer les tool_calls depuis les AIMessage
+    for m in state["messages"]:
+        if isinstance(m, AIMessage) and m.tool_calls:
+            for tc in m.tool_calls:
+                tool_call_id_to_name[tc["id"]] = tc["name"]
+
+    # 2️⃣ lire les ToolMessage et matcher via tool_call_id
+    for m in state["messages"]:
+        if isinstance(m, ToolMessage):
+            tool_name = tool_call_id_to_name.get(m.tool_call_id)
+
+            if tool_name == "twelve_data_time_series":
+                market = json.loads(m.content)
+                print(f"this is market {market}")
+
+
     system_prompt = f"""
 
     Today’s date is: { today_iso } and You are a senior FX/macro strategist at a top-tier macro research firm with WEB BROWSING ENABLED.  
@@ -1202,7 +1221,7 @@ def final_synthesis_agent(state: DirectionState) -> DirectionState:
 
     1. **Market Data Collection**  
         TOOL RESPONSE MESSAGE HISTORY:
-        {state.get("messages")}
+        {market}
     ⚠️ Remember: **all this market data is contextual metadata. The only mandatory final output is the `content` field.**
 
     2. **Strategist Report Construction (Weekly Outlook)**  
@@ -1321,7 +1340,7 @@ def final_synthesis_agent(state: DirectionState) -> DirectionState:
     """
 
     user_prompt = f"""
-    {(state["body"].get("question") or "").strip()}
+    {(state.get("question") or "").strip()}
     """
 
     try:
