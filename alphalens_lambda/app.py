@@ -25,6 +25,7 @@ from cerebras.cloud.sdk import Cerebras
 from langchain_core.output_parsers import PydanticOutputParser
 from typing import List, Optional, Literal
 from langchain_core.tools import tool
+from langgraph.prebuilt import ToolNode
 
 
 load_dotenv()
@@ -315,8 +316,7 @@ class DirectionState(TypedDict):
     output: Dict[str, Any]
     error: Optional[str]
 
-
-def supabase_update_job_status(state: dict) -> dict:
+def supabase_update_job_status(state: dict, response_payload: dict) -> dict:
     """
     LangGraph node.
     Equivalent n8n Supabase 'update jobs' node.
@@ -335,7 +335,8 @@ def supabase_update_job_status(state: dict) -> dict:
             .table("jobs")
             .update({
                 "status": "pending",
-                "progress_message": "Reading the news"
+                "progress_message": "Reading the news",
+                "response_payload": response_payload,
             })
             .eq("id", job_id)
             .execute()
@@ -454,7 +455,6 @@ attribution is needed, use generic phrasing while keeping the existing JSON stru
 #    - Use only `headline`, `summary`, and `datetime` fields for reasoning. 
 #    - Reference each article used by **source name + publication date**.  
 
-
 async def data_collection_llm_agent(state: DirectionState) -> dict:
     """
     LangGraph node.
@@ -515,50 +515,11 @@ ARTICLES:
     print(f"Data Collection LLM Agent completed in {end - start:.2f} seconds.")
     # print("****************************************")
     # print("Data Collection LLM Agent response:", res)
-    # print("****************************************")
-    # print("articles:", articles)
-    # print("****************************************")
+    print("****************************************")
+    print("articles:", articles)
+    print("****************************************")
     return {
         "articles": res
-    }
-
-async def data_collection_llm_agent_dev(state: DirectionState) -> dict:
-    """
-    LangGraph node.
-    Deterministic fetch + LLM reasoning.
-    """
-    start = time.time()
-    question = state["body"]["question"]
-
-    # 1️⃣ Fetch data (tool, deterministic)
-    articles = await fetch_finnhub_news_last_30d()
-
-    # if not articles:
-    #     return {"macro_insight": "no fresh institutional data available"}
-
-    # 2️⃣ LLM reasoning (agent cognition)
-    llm = ChatOpenAI(
-        model="gpt-4o-mini",
-        temperature=0,
-    )
-
-    user_prompt = f"""
-Question:
-{question}
-
-ARTICLES:
-{articles}
-"""
-
-    resp = await llm.ainvoke([
-        SystemMessage(content=SYSTEM_PROMPT_DATA_COLLECTION),
-        HumanMessage(content=user_prompt),
-    ])
-    end = time.time()
-    print(f"Data Collection LLM Agent completed in {end - start:.2f} seconds.")
-    # print("Data Collection LLM Agent response:", resp.content)
-    return {
-        "articles": resp.content
     }
 
 @tool
@@ -702,7 +663,6 @@ Correct for timeframe = "4h":
                 "raw_response": response.text,
                 "elapsed_sec": round(elapsed, 2),
             }
-
         # -----------------------------
         # 5️⃣ Success path
         # -----------------------------
@@ -951,9 +911,33 @@ def planner_agent(state: DirectionState):
         model="gpt-4.1-mini",
         temperature=0,
     ).bind_tools([twelve_data_time_series])
+    print("[MACRO8COMMENTARY]twelve_data_time_series")
 
     messages = state.get("messages", []) + [
         SystemMessage(content="""
+                      You are a Trade Planner operating inside a LangGraph execution pipeline.
+
+            Your role is STRICTLY LIMITED to orchestrating tool calls and preparing data for downstream agents.
+            You are NOT allowed to generate any final trade setup or narrative at this stage.
+
+            ────────────────────────────────────────────
+            MANDATORY EXECUTION PLAN (DO NOT DEVIATE)
+            ────────────────────────────────────────────
+
+            You MUST perform the following steps IN THIS EXACT ORDER:
+
+            Market Data Collection
+            • Call the tool: twelve_data_time_series
+            • Purpose: retrieve raw OHLCV market data for the requested instrument
+            • You MUST infer the correct tool parameters from the user inputs and context:
+            - symbol → normalized trading symbol (e.g. XAU/USD, EUR/USD, BTC/USD)
+            - outputsize → choose a reasonable value (50–200) to support technical context
+
+            DO NOT hallucinate symbols.
+            If the symbol cannot be reliably inferred, still call the tool using the closest valid canonical symbol and proceed.
+
+
+
                       Decide if market data is required and call tools if needed.
                 ⚠️ SYMBOL RULES (CRITICAL — DO NOT IGNORE)
             - All requests to Twelve Data **must use valid ticker formats**.
@@ -977,11 +961,11 @@ def planner_agent(state: DirectionState):
     # print("Planner Agent messages:", messages)
 
     ai_msg = llm.invoke(messages)
+    print("*****************************************************")
+    print("planner_agenthas been called")
+    print("*****************************************************")
     return {"messages": messages + [ai_msg]}
     # return {"messages": [ai_msg]}
-
-
-import httpx
 
 @tool
 async def twelve_data_time_series(
@@ -1003,6 +987,8 @@ async def twelve_data_time_series(
         "format": "JSON",
     }
 
+    print("[MACRO_COMMENTARY]twelve_data_time_series")
+
     async with httpx.AsyncClient() as client:
         r = await client.get(URL, params=params, timeout=30)
         r.raise_for_status()
@@ -1015,9 +1001,9 @@ async def twelve_data_time_series(
 def generate_trade_agent(state: DirectionState) -> DirectionState:
     start = time.time()
     # print(f"from Generating trade agent {json.dumps(state.get('forecast_data'), indent=2)}", state)
-    print("----------------------________________------------------------")
-    print(state)
-    print("----------------------________________------------------------")
+    # print("----------------------________________------------------------")
+    # print(state)
+    # print("----------------------________________------------------------")
 
 
     llm = ChatOpenAI(
@@ -1182,7 +1168,9 @@ from cerebras.cloud.sdk import Cerebras
 
 def final_synthesis_agent(state: DirectionState) -> DirectionState:
     start = time.time()
+    print("[MACRO_COMMENTARY]final_synthesis_agent")
 
+    market = None
     resp: Optional[Any] = None
     error_reason: Optional[str] = None
     res: Optional[str] = None 
@@ -1191,27 +1179,11 @@ def final_synthesis_agent(state: DirectionState) -> DirectionState:
         # This is the default and can be omitted
         api_key=os.environ.get("CEREBRAS_API_KEY")
     )
-
+    # print("*****************************************************")
+    # print("Final synthesis has been called")
+    # print(state["messages"])
+    # print("*****************************************************")
     parser = PydanticOutputParser(pydantic_object=StrategistOutput)
-
-    tool_call_id_to_name = {}
-    print("extract has been called")
-
-        # 1️⃣ récupérer les tool_calls depuis les AIMessage
-    for m in state["messages"]:
-        if isinstance(m, AIMessage) and m.tool_calls:
-            for tc in m.tool_calls:
-                tool_call_id_to_name[tc["id"]] = tc["name"]
-
-    # 2️⃣ lire les ToolMessage et matcher via tool_call_id
-    for m in state["messages"]:
-        if isinstance(m, ToolMessage):
-            tool_name = tool_call_id_to_name.get(m.tool_call_id)
-
-            if tool_name == "twelve_data_time_series":
-                market = json.loads(m.content)
-                print(f"this is market {market}")
-
 
     system_prompt = f"""
 
@@ -1221,7 +1193,10 @@ def final_synthesis_agent(state: DirectionState) -> DirectionState:
 
     1. **Market Data Collection**  
         TOOL RESPONSE MESSAGE HISTORY:
-        {market}
+        ---
+        {json.dumps(state.get("market_data"), ensure_ascii=False)}
+        ---
+
     ⚠️ Remember: **all this market data is contextual metadata. The only mandatory final output is the `content` field.**
 
     2. **Strategist Report Construction (Weekly Outlook)**  
@@ -1339,6 +1314,11 @@ def final_synthesis_agent(state: DirectionState) -> DirectionState:
         - Never include text outside JSON
     """
 
+    print("**************STATE**************")
+    print(system_prompt)
+    print("*********************************")
+
+
     user_prompt = f"""
     {(state.get("question") or "").strip()}
     """
@@ -1412,203 +1392,6 @@ def final_synthesis_agent(state: DirectionState) -> DirectionState:
     return {
         "output": {
             "final_answer": content.strip(),
-            "confidence_note": (
-                "Partner research unavailable"
-                if isinstance(state.get("abcg_research"), dict)
-                and state["abcg_research"].get("status") == "unavailable"
-                else "Partner research integrated"
-            )
-        }
-    }
-
-def final_synthesis_agent_dev(state: DirectionState) -> DirectionState:
-    start = time.time()
-
-    llm = ChatOpenAI(
-        model="gpt-4.1-mini",
-        temperature=0
-    )
-
-    resp = None
-    error_reason = None
-
-    system_prompt = f"""
-
-Today’s date is: { today_iso } and You are a senior FX/macro strategist at a top-tier macro research firm with WEB BROWSING ENABLED.  
-
-Your mandate is THREE-FOLD in a SINGLE OUTPUT:  
-
-1. **Market Data Collection**  
-    TOOL RESPONSE MESSAGE HISTORY:
-    {state.get("messages")}
-  ⚠️ Remember: **all this market data is contextual metadata. The only mandatory final output is the `content` field.**
-
-2. **Strategist Report Construction (Weekly Outlook)**  
-   - Use Partner institutional insights (ABCG RESEARCH) as foundation. Expand clearly.  
-   - Complement with contextual news discovered via Perplexity, but cite only the original publishers.  
-   - **Tone must be institutional, structured, confident (Goldman Sachs / JPMorgan style).**  
-   - **Content base** → Anchor in Partner Research. Expand clearly.  
-   - **News complement** → Enrich with news (discovered via Perplexity) but always cite only the original publishers.  
-
-   - Mandatory structure:  
-
-   ---
-
-   Executive Summary  
-   {{2–3 sentences}}  
-
-   Fundamental Analysis  
-   {{Narrative + bullets}}  
-
-   Directional Bias  
-   {{Bullish/Bearish/Neutral}} 
-   Confidence: {{XX}}%  
-
-   Key Levels  
-   Support  
-   {{level1}}  
-   {{level2}}  
-   Resistance  
-   {{level1}}  
-   {{level2}}  
-  
-   AI Insights Breakdown  
-   Toggle GPT  
-   {{GPT narrative}} 
-
-   Toggle Curated  
-   {{Institutional view}}  
-   ---  
-
-3. **Fundamentals Enrichment**  
-   - All macroeconomic fundamentals (releases, actual, consensus, previous, timestamps) must come exclusively from the Finnhub Economic Calendar API.  
-   - If an event is not present in Finnhub, mark it `"Unavailable"`.  
-   - Perplexity or other news sources may only be used for qualitative context (commentary, sentiment), never for datapoints.
-   - Always include: indicator, actual, consensus, previous, release timestamp, checked_at.  
-   - If web access fails, add `"warning": "web access to FF/TE unavailable"`.  
-   - **Enriched note must be the base_report enriched with:**  
-     - inline numeric clarifications,  
-     - appended sections: Fundamentals, Rate Differentials, Positioning, Balance of Payments, Central Bank Pricing, Sentiment Drivers, Event Watch.  
-   - ⚠️ **This enriched strategist note must always be placed in the `content` field.  
-     The `content` field is the one and only mandatory narrative output.  
-     All other fields (request, market_data, meta, base_report, fundamentals, citations_news) are supporting context and traceability only.**
-
----
-
-## OUTPUT RULES
-
-- Produce a single JSON
-
-⚠️ Important: The list of collected_intervals and series timeslots above is only an example.  
-Always decide dynamically which intervals to collect depending on the user’s query and trading horizon.  
-Do not fetch redundant data if it is not required.  
-
-⚠️ Critical: The field `content` must always contain the **final enriched strategist note** and be at the VERY ROOT OF THE JSON OUTPUT.  
-This is the **main output of your work**.  
-All other fields are optional context, metadata, and traceability, but `content` is the only mandatory narrative output.  
-
-Every field must exist in the JSON (if data is missing, use empty string, empty array, or `"Unavailable"`).  
-Return only JSON, no free text.  
-
----
-⚠️ Temporal Truth Rule:  
-At any point in the reasoning, the authoritative state of macroeconomic fundamentals is the Finnhub Economic Calendar snapshot provided at runtime ( see below )  
-This snapshot reflects the truth of the economic environment at today’s date { today_iso }.  
-All strategist reasoning must align strictly with this snapshot, treating it as the ground truth of the economy at time T.  
-If any discrepancy arises between other sources and Finnhub, Finnhub always prevails.
-
-## INPUTS
-
-- Perplexity discovery: {state.get("articles")} 
-- Partner research: {json.dumps(state.get("abcg_research"), ensure_ascii=False)}
-- User query: { (state["body"].get("question") or "").strip() }
-- Finnhub economic calendar : || {json.dumps(state.get("economic_calendar_agent"), ensure_ascii=False)} ||
-
----
-
-
-## CRITICAL RULES
-
-- Market data → ONLY Twelve Data (valid intervals only).  
-- Fundamentals → ONLY ForexFactory/TradingEconomics.  
-- News → ONLY original publishers.  
-- Ranges 3d/5d must always be computed locally from 1day data (never API calls).  
-- Missing sections or invalid JSON will invalidate your output.  
-
-Do not mention or reveal any third-party data vendors or platforms ( finnhub twelve, data, tradingview) when 
-attribution is needed, use generic phrasing while keeping the existing JSON structure unchanged 
-
-"""
-
-    user_prompt = f"""
-{(state["body"].get("question") or "").strip()}
-"""
-
-    try:
-        resp = llm.invoke([
-            SystemMessage(content=system_prompt),
-            HumanMessage(content=user_prompt)
-        ])
-
-    except Exception as e:
-        error_reason = f"LLM invocation failed: {str(e)}"
-
-    end = time.time()
-    # print("remember user s question was :", (state["body"].get("question") or "").strip())
-    print(f"Final Synthesis Agent completed in {end - start:.2f} seconds.")
-
-    # -----------------------------
-    # 🛑 CASE 1 — Hard failure
-    # -----------------------------
-    if resp is None:
-        print("⚠️ Final agent LLM invocation failed")
-        return {
-            "output": {
-                "final_answer": "Unavailable",
-                "confidence_note": "LLM call failed",
-                "error": error_reason,
-            }
-        }
-
-    # -----------------------------
-    # 🛑 CASE 2 — Tool call only
-    # -----------------------------
-    if getattr(resp, "tool_calls", None):
-        print("⚠️ Final agent emitted tool calls instead of content")
-        print("Tool calls:", resp.tool_calls)
-
-        return {
-            "output": {
-                "final_answer": (
-                    "Market data requested via tool call. "
-                    "Final narrative could not be generated at this stage."
-                ),
-                "confidence_note": "Deferred — awaiting tool execution",
-                "tool_calls": resp.tool_calls,
-            }
-        }
-
-    # -----------------------------
-    # 🛑 CASE 3 — Empty content
-    # -----------------------------
-    content = (resp.content or "").strip()
-    if not content:
-        print("⚠️ Empty LLM content")
-
-        return {
-            "output": {
-                "final_answer": "Unavailable",
-                "confidence_note": "Empty LLM response",
-            }
-        }
-
-    # -----------------------------
-    # ✅ CASE 4 — Normal path
-    # -----------------------------
-
-    return {
-        "output": {
-            "final_answer": content,
             "confidence_note": (
                 "Partner research unavailable"
                 if isinstance(state.get("abcg_research"), dict)
@@ -1799,7 +1582,7 @@ def extract_tool_outputs(state: DirectionState) -> dict:
                 forecast = json.loads(m.content)
                 print("***********************")
                 print(f"forecast_aws_api TOUCHE")
-                print(forecast)
+                # print(forecast)
                 print("***********************")
 
             elif tool_name == "twelve_data_time_series":
@@ -1844,6 +1627,7 @@ def build_run_graph():
     graph.add_node("economic_calendar", economic_calendar_agent)
     graph.add_node("planner", planner_agent)
     graph.add_node("tools", ToolNode([twelve_data_time_series]))
+    graph.add_node("extract_tool_outputs", extract_tool_outputs)
     graph.add_node("final", final_synthesis_agent)
 
     # router
@@ -1858,7 +1642,8 @@ def build_run_graph():
     graph.add_edge("abcg_research", "planner")
     graph.add_edge("economic_calendar", "planner")
     graph.add_edge("planner", "tools")
-    graph.add_edge("tools", "final")
+    graph.add_edge("tools","extract_tool_outputs")
+    graph.add_edge("extract_tool_outputs", "final")
     graph.add_edge("final", END)
 
     return graph.compile()
@@ -1910,7 +1695,7 @@ def make_supabase_update_node(table: str, fields: dict, filter_key: str):
     print(f"Supabase update node created in {end - start:.2f} seconds.")
     return node
 
-def build_trade_graph():
+# def build_trade_graph():
     graph = StateGraph(DirectionState)
 
     # supabase_reading_news = make_supabase_update_node(
@@ -1976,19 +1761,19 @@ async def run_webhook(request: Request):
         if isinstance(body, str):
             body = json.loads(body)
 
-        # state = {
-        #     "body": body,         
-        #     "messages": [],
-        #     "tradeMessages": [],
-        #     "articles": [],
-        #     "macro_insight": "",
-        #     "abcg_research": None,
-        #     "trade_setup": None,
-        #     "economic_calendar": None,
-        #     "market_data": None,
-        #     "output": {},
-        #     "error": None
-        # }
+        state = {
+            "body": body,         
+            "messages": [],
+            "tradeMessages": [],
+            "articles": [],
+            "macro_insight": "",
+            "abcg_research": None,
+            "trade_setup": None,
+            "economic_calendar": None,
+            "market_data": None,
+            "output": {},
+            "error": None
+        }
 
         state = body
 
@@ -1999,10 +1784,12 @@ async def run_webhook(request: Request):
 
         if body.get("mode", "") == "trade_generation":
             result = await build_trade_graph().ainvoke(state)
+            raw = result["trade_generation_output"]["final_answer"]
         else:
             result = await build_run_graph().ainvoke(state)
+            raw = result["output"]["final_answer"]
 
-        raw = result["output"]["final_answer"]
+
 
         clean = strip_json_fences(raw)
         # parsed = json.loads(clean)
