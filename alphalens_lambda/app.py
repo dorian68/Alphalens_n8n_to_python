@@ -24,8 +24,7 @@ from dotenv import load_dotenv
 from cerebras.cloud.sdk import Cerebras
 from langchain_core.output_parsers import PydanticOutputParser
 from typing import List, Optional, Literal
-
-
+from langchain_core.tools import tool
 
 
 load_dotenv()
