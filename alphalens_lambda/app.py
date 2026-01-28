@@ -1727,6 +1727,7 @@ Use this information to produce structured trade setups as per your system promp
         "trade_generation_output": {
             "final_answer": content,
             "trade_setup": {json.dumps(state.get('forecast_data'), indent=2)},
+            "risk_surface": {json.dumps(state.get('surface_data'), indent=2)},
             "confidence_note": (
                 "Partner research unavailable"
                 if isinstance(state.get("abcg_research"), dict)
@@ -1931,6 +1932,11 @@ def final_synthesis_agent(state: DirectionState) -> DirectionState:
     # -----------------------------
     if res is None:
         print("⚠️ Final agent LLM invocation failed")
+        st = supabase_update_job_status(state, "output": {
+                "final_answer": "Unavailable",
+                "confidence_note": "LLM call failed",
+                "error": error_reason,
+        })
         return {
             "output": {
                 "final_answer": "Unavailable",
@@ -1949,7 +1955,10 @@ def final_synthesis_agent(state: DirectionState) -> DirectionState:
     content = (res or "").strip()
     if not content:
         print("⚠️ Empty LLM content")
-
+        t = supabase_update_job_status(state, "output": {
+                "final_answer": "Unavailable",
+                "confidence_note": "Empty LLM response",
+            })
         return {
             "output": {
                 "final_answer": "Unavailable",
@@ -1960,7 +1969,7 @@ def final_synthesis_agent(state: DirectionState) -> DirectionState:
     # -----------------------------
     # ✅ CASE 4 — Normal path
     # -----------------------------
-
+    st = supabase_update_job_status(state,content.strip())
     return {
         "output": {
             "final_answer": content.strip(),
