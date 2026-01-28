@@ -341,7 +341,7 @@ def supabase_update_job_status(state: dict, response_payload: dict) -> dict:
             .eq("id", job_id)
             .execute()
         )
-        print(f"supabase insert's response: {response}")
+        # print(f"supabase insert's response: {response}")
 
         state["supabase"] = {
             "updated": True,
@@ -516,9 +516,9 @@ ARTICLES:
     print(f"Data Collection LLM Agent completed in {end - start:.2f} seconds.")
     # print("****************************************")
     # print("Data Collection LLM Agent response:", res)
-    print("****************************************")
-    print("articles:", articles)
-    print("****************************************")
+    # print("****************************************")
+    # print("articles:", articles)
+    # print("****************************************")
     return {
         "articles": res
     }
@@ -526,9 +526,9 @@ ARTICLES:
 @tool
 async def forecast_aws_api(symbol: str,timeframe: str,horizons: List[str],trade_mode: Optional[str] = "forward") -> Dict[str, Any]:
     """
-    Call the AWS forecast API to generate trade ideas and forecasts.
-    This tool NEVER raises: all errors are returned as structured output.
-    Purpose
+Call the AWS forecast API to generate trade ideas and forecasts.
+This tool NEVER raises: all errors are returned as structured output.
+Purpose
 Call the AWS Forecast Engine to generate probabilistic forecasts and trade ideas.
 ⚠️ This API is strictly validated. Invalid parameters return 400 invalid_request.
 
@@ -624,9 +624,9 @@ Correct for timeframe = "4h":
         "paths": 1000,
     }
 
-    print("*********************************** FORECAST AWS API CALL ***********************************")
-    print("Payload:", payload)
-    print("*********************************************************************************************")
+    # print("*********************************** FORECAST AWS API CALL ***********************************")
+    # print("Payload:", payload)
+    # print("*********************************************************************************************")
 
     # -----------------------------
     # 2️⃣ HTTP call with error handling
@@ -695,6 +695,124 @@ Correct for timeframe = "4h":
             "status": "error",
             "error_type": "unexpected_exception",
             "message": str(e),
+            "payload_sent": payload,
+        }
+
+from typing import Optional, Literal, Dict, Any
+import time
+import httpx
+from langchain_core.tools import tool
+
+
+@tool
+async def surface_probability_aws_api(
+    symbol: str,
+    timeframe: str,
+    direction: Literal["long", "short"],
+    methodology: Literal["legacy", "research"],
+    target_prob_min: float,
+    target_prob_max: float,
+    target_prob_steps: int,
+    sl_sigma_min: float,
+    sl_sigma_max: float,
+    sl_sigma_steps: int,
+    horizon_hours: Optional[float] = None,
+    steps: Optional[int] = None,
+    entry_price: Optional[float] = None,
+    paths: int = 3000,
+    dof: float = 3.0,
+) -> Dict[str, Any]:
+    """
+    Call AlphaLens Surface API to compute a target-probability surface.
+
+    This tool generates a probabilistic TP/SL surface using Monte Carlo simulation.
+    It is used for downstream trade optimization and visualization.
+
+    IMPORTANT RULES:
+    - Provide EITHER horizon_hours OR steps, never both.
+    - target_prob values must be strictly between 0 and 1.
+    - sl_sigma values must be strictly positive.
+    """
+
+    start = time.time()
+
+    SURFACE_URL = "https://jqrlegdulnnrpiixiecf.supabase.co/functions/v1/surface-proxy"
+
+    # ---------- Guard rails ----------
+    if horizon_hours is not None and steps is not None:
+        return {
+            "status": "error",
+            "error_type": "invalid_request",
+            "message": "Provide either horizon_hours or steps, not both.",
+        }
+
+    if not (0.0 < target_prob_min < target_prob_max < 1.0):
+        return {
+            "status": "error",
+            "error_type": "invalid_target_prob",
+            "message": "target_prob must be strictly between 0 and 1.",
+        }
+
+    if not (sl_sigma_min > 0 and sl_sigma_max > sl_sigma_min):
+        return {
+            "status": "error",
+            "error_type": "invalid_sl_sigma",
+            "message": "sl_sigma must be strictly positive and increasing.",
+        }
+
+    payload = {
+        "symbol": symbol,
+        "timeframe": timeframe,
+        "direction": direction,
+        "methodology": methodology,
+        "paths": paths,
+        "dof": dof,
+        "entry_price": entry_price,
+        "horizon_hours": horizon_hours,
+        "steps": steps,
+        "target_prob": {
+            "min": target_prob_min,
+            "max": target_prob_max,
+            "steps": target_prob_steps,
+        },
+        "sl_sigma": {
+            "min": sl_sigma_min,
+            "max": sl_sigma_max,
+            "steps": sl_sigma_steps,
+        },
+    }
+
+    try:
+        # print("*********************************** SURFACE AWS API CALL ***********************************")
+        # print("Payload:", payload)
+        # print("*********************************************************************************************")
+
+        async with httpx.AsyncClient(timeout=httpx.Timeout(20.0)) as client:
+            r = await client.post(SURFACE_URL, json=payload)
+            elapsed = time.time() - start
+
+            if r.status_code != 200:
+                return {
+                    "status": "error",
+                    "error_type": "http_error",
+                    "http_status": r.status_code,
+                    "message": "Surface API returned an error",
+                    "response_text": r.text,
+                    "payload_sent": payload,
+                    "elapsed_sec": round(elapsed, 2),
+                }
+
+            return {
+                "status": "ok",
+                "elapsed_sec": round(elapsed, 2),
+                "surface": r.json(),
+            }
+
+    except httpx.RequestError as exc:
+        return {
+            "status": "error",
+            "error_type": "network_error",
+            "message": str(exc),
             "payload_sent": payload,
         }
 
@@ -782,105 +900,144 @@ def planner_trade_agent(state: DirectionState):
     llm = ChatOpenAI(
         model="gpt-4.1-mini",
         temperature=0,
-    ).bind_tools([forecast_aws_api,twelve_data_time_series])
+    ).bind_tools([forecast_aws_api,twelve_data_time_series,surface_probability_aws_api])
 
     messages = state.get("messages", []) + [
         SystemMessage(content="""
-            You are a Trade Planner operating inside a LangGraph execution pipeline.
+        You are a Trade Planner operating inside a LangGraph execution pipeline.
 
-            Your role is STRICTLY LIMITED to orchestrating tool calls and preparing data for downstream agents.
-            You are NOT allowed to generate any final trade setup or narrative at this stage.
+        Your role is STRICTLY LIMITED to orchestrating tool calls.
+        You do NOT think, explain, summarize, or generate any narrative.
+        You ONLY convert the USER REQUEST into a SEQUENCE OF TOOL CALLS.
 
-            ────────────────────────────────────────────
-            MANDATORY EXECUTION PLAN (DO NOT DEVIATE)
-            ────────────────────────────────────────────
+        You are a deterministic orchestration node.
 
-            You MUST perform the following steps IN THIS EXACT ORDER:
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        ABSOLUTE EXECUTION CONTRACT
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-            STEP 1 — Market Data Collection
-            • Call the tool: twelve_data_time_series
-            • Purpose: retrieve raw OHLCV market data for the requested instrument
-            • You MUST infer the correct tool parameters from the user inputs and context:
-            - symbol → normalized trading symbol (e.g. XAU/USD, EUR/USD, BTC/USD)
-            - interval → derived from user timeframe:
-                * M5 / M15 → "5min" or "15min"
-                * H1 / H4 → "1h" or "4h"
-                * D1 / W1 → "1day" or "1week"
-            - outputsize → choose a reasonable value (50–200) to support technical context
+        For EVERY user request, you MUST execute EXACTLY THREE tool calls,
+        IN THIS EXACT ORDER, WITHOUT EXCEPTION:
 
-            DO NOT hallucinate symbols.
-            If the symbol cannot be reliably inferred, still call the tool using the closest valid canonical symbol and proceed.
+        1️⃣ twelve_data_time_series  
+        2️⃣ forecast_aws_api  
+        3️⃣ surface_probability_aws_api  
 
-            ────────────────────────────────────────────
+        This rule overrides ALL other considerations.
 
-            STEP 2 — Forecast & Trade Signal Collection
-            • Call the tool: forecast_aws_api
-            • Purpose: retrieve probabilistic forecasts and trade signals
-            • You MUST infer and generate the required parameters:
-            - symbol → same normalized symbol as STEP 1
-            - timeframe → same logical timeframe as STEP 1
-            - horizons → MUST be expressed as POSITIVE INTEGERS representing
-            the NUMBER OF FUTURE CANDLES (NOT time strings)
+        Even if information is missing, ambiguous, or uncertain:
+        → You MUST still call ALL THREE tools  
+        → You MUST infer conservative, valid defaults  
 
-            ────────────────────────────────────────────
-            HORIZON SELECTION RULES (CRITICAL — DO NOT VIOLATE)
-            ────────────────────────────────────────────
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        SOURCE OF TRUTH (CRITICAL)
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-            Horizon values MUST follow these mappings exactly:
+        The ONLY source of intent, parameters, and context is:
+        → the HumanMessage (user request)
 
-            • timeframe = "15m"
-            → horizons ∈ [12, 24, 48]
+        You MUST extract from it:
+        - instrument
+        - timeframe
+        - trading intent (intraday / swing / position if inferable)
+        - directional bias (if implied)
+        - any constraint explicitly stated
 
-            • timeframe = "30m"
-            → horizons ∈ [24, 32]
+        If something is NOT explicitly stated:
+        → infer the MOST CONSERVATIVE valid value
+        → NEVER skip a tool call
 
-            • timeframe = "1h"
-            → horizons ∈ [35, 60]
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        STEP 1 — Market Data Collection (MANDATORY)
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-            • timeframe = "4h"
-            → horizons ∈ [60, 120]
+        You MUST call: twelve_data_time_series
 
-            ❌ FORBIDDEN:
-            - "3h", "12h", "1d", "5d", or any string-based duration
-            - negative or zero values
-            - mismatched horizons relative to timeframe
+        Infer parameters from the user request:
+        - symbol → normalized (XAU/USD, EUR/USD, BTC/USD)
+        - interval →
+            M5 / M15 → "5min" / "15min"
+            H1 / H4 → "1h" / "4h"
+            D1 / W1 → "1day" / "1week"
+        - outputsize → 100 (default unless user implies otherwise)
 
-            If intent is:
-            - Intraday → choose the SHORTEST valid horizons
-            - Swing → choose MID-RANGE horizons
-            - Position → choose the LONGEST valid horizons
+        If symbol or timeframe is unclear:
+        → choose the closest valid canonical value
+        → DO NOT ask questions
+        → DO NOT stop
 
-            If uncertain, choose the MOST CONSERVATIVE valid horizons.
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        STEP 2 — Forecast & Trade Signal Collection (MANDATORY)
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-            ────────────────────────────────────────────
+        You MUST call: forecast_aws_api
 
-            - trade_mode → "forward" unless explicitly specified otherwise
+        Rules:
+        - symbol → SAME as STEP 1
+        - timeframe → SAME as STEP 1
+        - horizons → POSITIVE INTEGERS = NUMBER OF FUTURE CANDLES
 
-            ────────────────────────────────────────────
-            CRITICAL RULES
-            ────────────────────────────────────────────
+        HORIZON MAPPING (STRICT):
+        - 15m → [12]
+        - 30m → [24]
+        - 1h  → [35]
+        - 4h  → [60]
 
-            • You MUST call BOTH tools.
-            • You MUST NOT fabricate prices, levels, probabilities, or signals.
-            • You MUST NOT stop after the first tool call.
-            • Your response MUST consist ONLY of tool calls until both tools have been executed.
+        Intent refinement:
+        - Intraday → shortest valid horizon
+        - Swing → mid-range
+        - Position → longest valid
 
-            ────────────────────────────────────────────
-            OUTPUT CONSTRAINT
-            ────────────────────────────────────────────
+        If intent is unclear:
+        → choose the SHORTEST valid horizon
 
-            • Until BOTH tool calls are completed:
-            - Do NOT produce normal text
-            - Do NOT produce JSON
-            - Do NOT explain your reasoning
-            • Your output must be valid tool calls only.
+        NEVER use strings ("12h", "3d", etc.)
 
-            Once BOTH tool calls are completed, the next LangGraph node will handle:
-            • tool output extraction
-            • validation
-            • trade setup generation
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        STEP 3 — Target Probability Surface Generation (MANDATORY)
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-            Failure to follow this plan invalidates your output.
+        You MUST call: surface_probability_aws_api
+
+        Rules:
+        - symbol → SAME as STEP 1
+        - timeframe → SAME as STEP 1
+        - methodology → "research" (ALWAYS)
+        - direction → inferred from forecast bias
+        (if unclear → default to "long")
+        - paths → 3000
+        - horizon_hours OR steps →
+        derived consistently from STEP 2 horizons
+        (NEVER provide both)
+
+        Range defaults (ALWAYS VALID):
+        - target_prob:
+            min = 0.4
+            max = 0.8
+            steps = 7
+        - sl_sigma:
+            min = 0.5
+            max = 3.0
+            steps = 7
+
+        If entry_price is not provided:
+        → OMIT it and let the API resolve it
+
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        OUTPUT CONSTRAINT (ABSOLUTE)
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+        Your response MUST contain:
+        → ONLY tool calls
+        → NO text
+        → NO JSON
+        → NO explanations
+        → NO reasoning
+
+        You MUST emit ALL THREE tool calls
+        before the message ends.
+
+        Any deviation invalidates the execution.
 
                       """),
         HumanMessage(content=f"""
@@ -905,6 +1062,10 @@ def planner_trade_agent(state: DirectionState):
     ]
 
     ai_msg = llm.invoke(messages)
+    # print("****************************************TRADE PLANNER ******************************************")
+    # print(ai_msg)
+    # print("****************************************TRADE PLANNER ******************************************")
+
     return {"messages": [ai_msg]}
 
 def planner_agent(state: DirectionState):
@@ -968,6 +1129,422 @@ def planner_agent(state: DirectionState):
     return {"messages": messages + [ai_msg]}
     # return {"messages": [ai_msg]}
 
+def planner_market_data(state):
+    llm = ChatOpenAI(
+        model="gpt-4.1-mini",
+        temperature=0,
+    ).bind_tools([twelve_data_time_series])
+
+    messages = [
+        SystemMessage(content="""
+            You are a Trade Planner operating inside a LangGraph execution pipeline.
+
+            Your role is STRICTLY LIMITED to orchestrating tool calls.
+            You do NOT think, explain, summarize, or generate any narrative.
+            You ONLY convert the USER REQUEST into a SEQUENCE OF TOOL CALLS.
+
+            You are a deterministic orchestration node.
+
+            ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            ABSOLUTE EXECUTION CONTRACT
+            ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+            For EVERY user request, you MUST execute EXACTLY this tool call,
+            IN THIS EXACT ORDER:
+
+            1️⃣ twelve_data_time_series
+
+            ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            SOURCE OF TRUTH (CRITICAL)
+            ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+            The PRIMARY and OVERRIDING source of truth is the USER MESSAGE.
+
+            You MUST first attempt to EXTRACT EXPLICIT VALUES from the user request.
+
+            Extraction priority (DO NOT CHANGE):
+            1. Explicit user-stated timeframe
+            2. Explicit user-stated instrument
+            3. Explicit constraints (risk, strategy, horizon)
+
+            You are FORBIDDEN from overriding an explicit user timeframe.
+
+            ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            TIMEFRAME SELECTION RULES (STRICT)
+            ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+            Supported timeframes ONLY:
+            • M5
+            • M15
+            • H1
+            • H4
+
+            ❌ Forbidden timeframes:
+            • D1
+            • W1
+            • Any timeframe not explicitly listed above
+
+            If the user explicitly specifies a timeframe:
+            → YOU MUST USE IT EXACTLY (after normalization)
+
+            If the user does NOT specify a timeframe:
+            → Default to **H4**
+            → NEVER default to D1 or W1
+
+            Normalization mapping (MANDATORY):
+            • M5   → "5min"
+            • M15  → "15min"
+            • H1   → "1h"
+            • H4   → "4h"
+
+            ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            STEP 1 — Market Data Collection (MANDATORY)
+            ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+            You MUST call: twelve_data_time_series
+
+            Parameters:
+            - symbol → normalized canonical symbol (e.g. XAU/USD, EUR/USD, BTC/USD)
+            - interval → derived STRICTLY from the rules above
+            - outputsize → 100 unless user explicitly requests otherwise
+
+            If the symbol is unclear:
+            → choose the closest canonical instrument
+            → DO NOT change the timeframe
+
+            ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            FAILURE PREVENTION RULE
+            ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+            NEVER widen the timeframe to “be safe”.
+            NEVER choose a higher timeframe than the user requested.
+            NEVER infer D1 or W1 unless EXPLICITLY requested by the user.
+
+        """),
+        HumanMessage(content=f"""
+            {(state.get("question") or "").strip()}
+
+            "Generate a trade setup for " + { state.get("instrument") or "not specified" } + ".\n" +
+            "Use the following optional parameters if provided:\n" +
+            "- timeframe: " + { state.get("timeframe") or "not specified" } + "\n" +
+            "- risk level: " + { state.get("riskLevel") or "not specified"} + "\n" +
+            "- strategy: " + { state.get("strategy") or "not specified"} + "\n" +
+            "- position size: " + { state.get("positionSize") or "not specified" } + "\n" +
+            "Also take into account this custom note from the user if available: " + { state.get("customNotes") or "none" } + "\n\n" +
+            "Please ensure that the macroeconomic context is well-developed and supported by citations from high-authority institutional sources when possible. Disregard low-authority content unless it supports a validated macro view."
+
+
+            The "content.content" field contains the strategist report (baseline + enriched).
+            The "fundamentals" field contains structured macro data (CPI, NFP, rates, positioning, etc.).
+            The "citations_news" field contains original publisher sources.
+
+            Use this information to produce structured trade setups as per your system prompt.
+            """),
+    ]
+
+    return {"messages": [llm.invoke(messages)]}
+
+def planner_forecast(state):
+    llm = ChatOpenAI(
+        model="gpt-4.1-mini",
+        temperature=0,
+    ).bind_tools([forecast_aws_api])
+
+    messages = state["messages"] + [
+        SystemMessage(content="""
+                      
+      You are a Trade Planner operating inside a LangGraph execution pipeline.
+
+        Your role is STRICTLY LIMITED to orchestrating tool calls.
+        You do NOT think, explain, summarize, or generate any narrative.
+        You ONLY convert the USER REQUEST into a SEQUENCE OF TOOL CALLS.
+
+        You are a deterministic orchestration node.
+
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        ABSOLUTE EXECUTION CONTRACT
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+        For EVERY user request, you MUST execute EXACTLY this tool calls,
+        IN THIS EXACT ORDER, WITHOUT EXCEPTION:
+
+        1️⃣ forecast_aws_api  
+
+        This rule overrides ALL other considerations.
+
+        Even if information is missing, ambiguous, or uncertain:
+        → You MUST still call this tools  
+        → You MUST infer conservative, valid defaults  
+
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        SOURCE OF TRUTH (CRITICAL)
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+        The ONLY source of intent, parameters, and context is:
+        → the HumanMessage (user request)
+
+        You MUST extract from it:
+        - instrument
+        - timeframe
+        - trading intent (intraday / swing / position if inferable)
+        - directional bias (if implied)
+        - any constraint explicitly stated
+
+        If something is NOT explicitly stated:
+        → infer the MOST CONSERVATIVE valid value
+        → NEVER skip a tool call   
+                                
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        STEP 2 — Forecast & Trade Signal Collection (MANDATORY)
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+        You MUST call: forecast_aws_api
+
+        Rules:
+        - symbol → SAME as STEP 1
+        - timeframe → SAME as STEP 1
+        - horizons → POSITIVE INTEGERS = NUMBER OF FUTURE CANDLES
+
+        HORIZON MAPPING (STRICT):
+        - 15m → [12]
+        - 30m → [24]
+        - 1h  → [35]
+        - 4h  → [60]
+                      
+        TIMEFRAME CONSTRAINTS (STRICT — NON-NEGOTIABLE)
+
+        The Forecast API ONLY supports the following execution timeframes:
+        • "15min"
+        • "30min"
+        • "1h"
+        • "4h"
+
+        You MUST comply with these rules EXACTLY:
+
+        1. Allowed values
+        - timeframe ∈ {"15min", "30min", "1h", "4h"}
+        - Any other value is FORBIDDEN.
+
+        2. Normalization (MANDATORY)
+        If the user provides:
+        - "M15", "15m", "15 minutes" → use "15min"
+        - "M30", "30m", "30 minutes" → use "30min"
+        - "H1", "1H", "1 hour"       → use "1h"
+        - "H4", "4H", "4 hours"      → use "4h"
+
+        3. Invalid or unsupported timeframe
+        If the user requests ANY other timeframe (e.g. "5m", "1d", "daily", "weekly"):
+        - DO NOT invent or approximate
+        - DO NOT ask a question
+        - DO NOT stop execution
+        - Select the CLOSEST CONSERVATIVE supported timeframe:
+            • Intraday intent → "15min"
+            • Swing intent → "1h"
+            • Position / unclear → "4h"
+
+        4. Forecast API rule (CRITICAL)
+        - The `forecast_aws_api` tool MUST always be called with one of the four supported values above.
+        - Sending any other timeframe INVALIDATES the request.
+
+        5. Consistency requirement
+        - The SAME normalized timeframe MUST be used for:
+            • twelve_data_time_series
+            • forecast_aws_api
+            • surface_probability_aws_api
+
+        This rule OVERRIDES any user preference, example, or prior assumption.
+        Failure to comply invalidates the execution.
+            
+        Intent refinement:
+        - Intraday → shortest valid horizon
+        - Swing → mid-range
+        - Position → longest valid
+
+        If intent is unclear:
+        → choose the SHORTEST valid horizon
+
+        NEVER use strings ("12h", "3d", etc.)
+                      
+        ────────────────────────────────────────────
+        1. CANONICAL INSTRUMENT FORMAT (MANDATORY)
+        ────────────────────────────────────────────
+
+        All instruments MUST be normalized to the canonical format:
+
+        • FX        → "XXX/USD" or "USD/XXX"
+        • Commodities → predefined symbols only (e.g. "XAU/USD", "WTI/USD")
+        • Crypto    → "BTC/USD", "ETH/USD", etc.
+
+        ❌ DO NOT use:
+        - inverted aliases ("USDCAD", "CADUSD")
+        - lowercase
+        - free-text names ("Canadian Dollar", "CAD Dollar")
+        - synthetic or unsupported pairs
+                      
+        INSTRUMENT NORMALIZATION & MODEL AVAILABILITY (STRICT)
+
+        The Forecast & Surface APIs ONLY support instruments for which trained models
+        are available in the backend.
+
+        You MUST strictly normalize, validate, and filter instruments BEFORE
+        calling any forecasting or surface-generation tool.
+
+        ────────────────────────────────────────────
+        1. CANONICAL INSTRUMENT FORMAT (MANDATORY)
+        ────────────────────────────────────────────
+
+        All instruments MUST be converted to a canonical trading symbol:
+
+        • FX        → "XXX/USD" or "USD/XXX"
+        • Commodities → predefined canonical symbols only (e.g. "XAU/USD", "WTI/USD")
+        • Crypto    → "SYMBOL/USD" (e.g. BTC/USD, ETH/USD)
+
+        ❌ Forbidden formats:
+        - concatenated tickers (e.g. EURUSD, BTCUSDT)
+        - lowercase symbols
+        - descriptive names ("Euro", "Gold", "Bitcoin")
+        - aliases, broker-specific codes, or synthetic names
+
+        ────────────────────────────────────────────
+        2. USER INPUT NORMALIZATION RULES
+        ────────────────────────────────────────────
+
+        If the user provides:
+        - an alias → normalize to canonical symbol
+        - a single currency → infer the most liquid canonical pair
+        - a descriptive asset name → map to its canonical trading symbol
+
+        Normalization MUST always result in an explicit canonical symbol.
+
+
+                      """),        
+        HumanMessage(content=f"""
+            {(state.get("question") or "").strip()}
+
+            "Generate a trade setup for " + { state.get("instrument") or "not specified" } + ".\n" +
+            "Use the following optional parameters if provided:\n" +
+            "- timeframe: " + { state.get("timeframe") or "not specified" } + "\n" +
+            "- risk level: " + { state.get("riskLevel") or "not specified"} + "\n" +
+            "- strategy: " + { state.get("strategy") or "not specified"} + "\n" +
+            "- position size: " + { state.get("positionSize") or "not specified" } + "\n" +
+            "Also take into account this custom note from the user if available: " + { state.get("customNotes") or "none" } + "\n\n" +
+            "Please ensure that the macroeconomic context is well-developed and supported by citations from high-authority institutional sources when possible. Disregard low-authority content unless it supports a validated macro view."
+
+
+            The "content.content" field contains the strategist report (baseline + enriched).
+            The "fundamentals" field contains structured macro data (CPI, NFP, rates, positioning, etc.).
+            The "citations_news" field contains original publisher sources.
+
+            Use this information to produce structured trade setups as per your system prompt.
+            """),
+    ]
+
+    return {"messages": [llm.invoke(messages)]}
+
+def planner_surface(state):
+    llm = ChatOpenAI(
+        model="gpt-4.1-mini",
+        temperature=0,
+    ).bind_tools([surface_probability_aws_api])
+
+    messages = state["messages"] + [
+        SystemMessage(content="""
+        You are a Trade Planner operating inside a LangGraph execution pipeline.
+
+        Your role is STRICTLY LIMITED to orchestrating tool calls.
+        You do NOT think, explain, summarize, or generate any narrative.
+        You ONLY convert the USER REQUEST into a SEQUENCE OF TOOL CALLS.
+
+        You are a deterministic orchestration node.
+
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        ABSOLUTE EXECUTION CONTRACT
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+        For EVERY user request, you MUST execute EXACTLY this tool calls,
+        IN THIS EXACT ORDER, WITHOUT EXCEPTION:
+
+        1️⃣ surface_probability_aws_api  
+
+        This rule overrides ALL other considerations.
+
+        Even if information is missing, ambiguous, or uncertain:
+        → You MUST still call this tools  
+        → You MUST infer conservative, valid defaults  
+
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        SOURCE OF TRUTH (CRITICAL)
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+        The ONLY source of intent, parameters, and context is:
+        → the HumanMessage (user request)
+
+        You MUST extract from it:
+        - instrument
+        - timeframe
+        - trading intent (intraday / swing / position if inferable)
+        - directional bias (if implied)
+        - any constraint explicitly stated
+
+        If something is NOT explicitly stated:
+        → infer the MOST CONSERVATIVE valid value
+        → NEVER skip a tool call   
+                                
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        STEP — Target Probability Surface Generation (MANDATORY)
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+        You MUST call: surface_probability_aws_api
+
+        Rules:
+        - symbol → SAME as STEP 1
+        - timeframe → SAME as STEP 1
+        - methodology → "research" (ALWAYS)
+        - direction → inferred from forecast bias
+        (if unclear → default to "long")
+        - paths → 3000
+        - horizon_hours OR steps →
+        derived consistently from STEP 2 horizons
+        (NEVER provide both)
+
+        Range defaults (ALWAYS VALID):
+        - target_prob:
+            min = 0.4
+            max = 0.8
+            steps = 7
+        - sl_sigma:
+            min = 0.5
+            max = 3.0
+            steps = 7
+
+        If entry_price is not provided:
+        → OMIT it and let the API resolve it
+
+
+        """),        
+        HumanMessage(content=f"""
+            {(state.get("question") or "").strip()}
+
+            "Generate a trade setup for " + { state.get("instrument") or "not specified" } + ".\n" +
+            "Use the following optional parameters if provided:\n" +
+            "- timeframe: " + { state.get("timeframe") or "not specified" } + "\n" +
+            "- risk level: " + { state.get("riskLevel") or "not specified"} + "\n" +
+            "- strategy: " + { state.get("strategy") or "not specified"} + "\n" +
+            "- position size: " + { state.get("positionSize") or "not specified" } + "\n" +
+            "Also take into account this custom note from the user if available: " + { state.get("customNotes") or "none" } + "\n\n" +
+            "Please ensure that the macroeconomic context is well-developed and supported by citations from high-authority institutional sources when possible. Disregard low-authority content unless it supports a validated macro view."
+
+
+            The "content.content" field contains the strategist report (baseline + enriched).
+            The "fundamentals" field contains structured macro data (CPI, NFP, rates, positioning, etc.).
+            The "citations_news" field contains original publisher sources.
+
+            Use this information to produce structured trade setups as per your system prompt.
+            """),
+    ]
+
+    return {"messages": [llm.invoke(messages)]}
+
 @tool
 async def twelve_data_time_series(
     symbol: str,
@@ -1002,9 +1579,9 @@ async def twelve_data_time_series(
 def generate_trade_agent(state: DirectionState) -> DirectionState:
     start = time.time()
     # print(f"from Generating trade agent {json.dumps(state.get('forecast_data'), indent=2)}", state)
-    print("----------------------FORECAST_DATA------------------------")
-    print(json.dumps(state.get("forecast_data"), indent=2))
-    print("----------------------FORECAST_DATA------------------------")
+    # print("----------------------FORECAST_DATA------------------------")
+    # print(json.dumps(state.get("forecast_data"), indent=2))
+    # print("----------------------FORECAST_DATA------------------------")
 
 
     llm = ChatOpenAI(
@@ -1061,9 +1638,6 @@ CRITICAL OUTPUT RULES:
 - The last character MUST be '}}'
 """
 
-    print("FORECAST DATA FROM TRADE GENERATION ENGINE")
-    print(json.dumps(state.get("forecast_data"), indent=2))
-
     user_prompt = f"""
 {(state.get("question") or "").strip()}
 
@@ -1082,8 +1656,6 @@ The "fundamentals" field contains structured macro data (CPI, NFP, rates, positi
 The "citations_news" field contains original publisher sources.
 
 Use this information to produce structured trade setups as per your system prompt.
-
-
 """
 
     try:
@@ -1283,7 +1855,6 @@ def final_synthesis_agent(state: DirectionState) -> DirectionState:
 
     ---
 
-
     ## CRITICAL RULES
 
     - Market data → ONLY Twelve Data (valid intervals only).  
@@ -1315,9 +1886,9 @@ def final_synthesis_agent(state: DirectionState) -> DirectionState:
         - Never include text outside JSON
     """
 
-    print("**************STATE**************")
-    print(system_prompt)
-    print("*********************************")
+    # print("**************STATE**************")
+    # print(system_prompt)
+    # print("*********************************")
 
 
     user_prompt = f"""
@@ -1566,6 +2137,8 @@ def extract_tool_outputs(state: DirectionState) -> dict:
     tool_call_id_to_name = {}
     forecast = None
     market = None
+    surface = None
+
     print("extract has been called")
 
     # 1️⃣ récupérer les tool_calls depuis les AIMessage
@@ -1591,10 +2164,32 @@ def extract_tool_outputs(state: DirectionState) -> dict:
                 print("***********************")
                 print(f"twelve_data_time_series TOUCHE")
                 print("***********************")
-    print(f"forecast data extracted: is BTC in {"BTC" in json.dumps(forecast, indent=2)}")
+
+            elif tool_name == "surface_probability_aws_api":
+                surface = json.loads(m.content)
+                print("***********************")
+                print(f"surface_probability_aws_api TOUCHE")
+                print("***********************") 
+
+    print("************************STATE MESSAGE****************************")
+    print(state["messages"])
+    print("************************STATE MESSAGE****************************")
+
+    print("************************FORECAST MESSAGE****************************")
+    print(forecast)
+    print("************************FORECAST MESSAGE****************************")
+
+    print("************************MARKET MESSAGE****************************")
+    print(market)
+    print("************************MARKET MESSAGE****************************")
+
+    print("************************SURFACE MESSAGE****************************")
+    print(surface)
+    print("************************SURFACE MESSAGE****************************")
     return {
         "forecast_data": forecast,
         "market_data": market,
+        "surface_data": surface,
     }
 
 def start_node(state: DirectionState) -> DirectionState:
@@ -1657,7 +2252,7 @@ def build_trade_graph():
     graph.add_node("abcg_research", abcg_research_agent)
     graph.add_node("economic_calendar", economic_calendar_agent)
     graph.add_node("planner", planner_trade_agent)
-    graph.add_node("tools", ToolNode([forecast_aws_api,twelve_data_time_series]))
+    graph.add_node("tools", ToolNode([forecast_aws_api,twelve_data_time_series,surface_probability_aws_api]))
     graph.add_node("extract_tool_outputs", extract_tool_outputs)
     graph.add_node("planner_trade_agent", planner_agent)
     graph.add_node("final", generate_trade_agent)    
@@ -1680,6 +2275,51 @@ def build_trade_graph():
     print("Trade graph built.")
     return graph.compile()
 
+def build_trade2_graph():
+    graph = StateGraph(DirectionState)
+    graph.add_node("start", start_trade_queued_node)
+    graph.add_node("fanout", lambda s: s)
+    graph.add_node("fanout2", lambda s: s)
+
+    graph.add_node("data_collection_llm", data_collection_llm_agent)
+    graph.add_node("abcg_research", abcg_research_agent)
+    graph.add_node("economic_calendar", economic_calendar_agent)
+    graph.add_node("planner", planner_trade_agent)
+    graph.add_node("planner_market", planner_market_data)
+    graph.add_node("planner_forecast", planner_forecast)
+    graph.add_node("planner_surface", planner_surface)
+    graph.add_node("tools_market", ToolNode([twelve_data_time_series]))
+    graph.add_node("tools_forecast", ToolNode([forecast_aws_api]))
+    graph.add_node("tools_surface", ToolNode([surface_probability_aws_api]))
+    graph.add_node("extract_tool_outputs", extract_tool_outputs)
+    graph.add_node("planner_trade_agent", planner_agent)
+    graph.add_node("final", generate_trade_agent)    
+
+    # router
+    graph.set_entry_point("start")
+
+    graph.add_edge("start", "fanout")
+    graph.add_edge("fanout", "data_collection_llm")
+    graph.add_edge("fanout", "abcg_research")
+    graph.add_edge("fanout", "economic_calendar")
+
+    graph.add_edge("data_collection_llm", "fanout2")
+    graph.add_edge("abcg_research", "fanout2")
+    graph.add_edge("economic_calendar", "fanout2")
+    graph.add_edge("fanout2", "planner_market")
+    
+    graph.add_edge("planner_market", "tools_market")
+    graph.add_edge("tools_market", "planner_forecast")
+    graph.add_edge("planner_forecast", "tools_forecast")
+    graph.add_edge("tools_forecast", "planner_surface")
+    graph.add_edge("planner_surface", "tools_surface")
+    graph.add_edge("tools_surface", "extract_tool_outputs")
+
+    graph.add_edge("extract_tool_outputs", "final")
+    graph.add_edge("final", END)
+    print("Trade v2. graph built.")
+    return graph.compile()
+
 def make_supabase_update_node(table: str, fields: dict, filter_key: str):
     start = time.time()
     supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
@@ -1695,44 +2335,6 @@ def make_supabase_update_node(table: str, fields: dict, filter_key: str):
     end = time.time()
     print(f"Supabase update node created in {end - start:.2f} seconds.")
     return node
-
-# def build_trade_graph():
-    graph = StateGraph(DirectionState)
-
-    # supabase_reading_news = make_supabase_update_node(
-    #     table="jobs",
-    #     fields={
-    #         "status": "pending",
-    #         "progress_message": "Reading the news"
-    #     },
-    #     filter_key="job_id"
-    # )
-    graph.add_node("start", start_trade_queued_node)
-    graph.add_node("fanout", lambda s: s)
-    graph.add_node("data_collection_llm", data_collection_llm_agent)
-    graph.add_node("abcg_research", abcg_research_agent)
-    graph.add_node("economic_calendar", economic_calendar_agent)
-    graph.add_node("planner", planner_trade_agent)
-    graph.add_node("tools", ToolNode([forecast_aws_api]))
-    graph.add_node("final", generate_trade_agent)
-    # graph.add_node("supabase_reading_news", supabase_reading_news)
-
-    # router
-    graph.set_entry_point("start")
-
-    graph.add_edge("start", "fanout")
-    graph.add_edge("fanout", "data_collection_llm")
-    graph.add_edge("fanout", "abcg_research")
-    graph.add_edge("fanout", "economic_calendar")
-
-    graph.add_edge("data_collection_llm", "planner")
-    graph.add_edge("abcg_research", "planner")
-    graph.add_edge("economic_calendar", "planner")
-    graph.add_edge("planner", "tools")
-    graph.add_edge("tools", "final")
-    graph.add_edge("final", END)
-
-    return graph.compile()
 
 def extract_first_json(text: str) -> dict:
     """
@@ -1778,26 +2380,23 @@ async def run_webhook(request: Request):
 
         state = body
 
-        _RUN_GRAPH = build_run_graph()
-        _TRADE_GRAPH = build_trade_graph()
-
-        # _direction_agent = get_direction_agent()
-
         if body.get("mode", "") == "trade_generation":
-            result = await build_trade_graph().ainvoke(state)
+            result = await build_trade2_graph().ainvoke(state)
             raw = result["trade_generation_output"]
-            print("*********************trade_generation_output**********************")
-            print(raw)
-            print("*********************trade_generation_output**********************")
+            # raw = extract_first_json(raw)
+            print(f"[trade_generation]type of raw is {raw}")
         else:
             result = await build_run_graph().ainvoke(state)
             raw = result["output"]["final_answer"]
+            print(f"[macro]type of raw is {raw}")
+
+            # clean = strip_json_fences(raw)
+            # # parsed = json.loads(clean)
+            # raw = extract_first_json(raw)
 
 
 
-        clean = strip_json_fences(raw)
-        # parsed = json.loads(clean)
-        raw = extract_first_json(raw)
+
         print("Parsed LLM output:", raw)
 
         supabase_update_job_status(state,{ 
