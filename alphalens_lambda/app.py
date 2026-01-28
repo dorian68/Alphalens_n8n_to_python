@@ -1932,7 +1932,7 @@ def final_synthesis_agent(state: DirectionState) -> DirectionState:
     # -----------------------------
     if res is None:
         print("⚠️ Final agent LLM invocation failed")
-        st = supabase_update_job_status(state, "output": {
+        st = supabase_update_job_status(state, {
                 "final_answer": "Unavailable",
                 "confidence_note": "LLM call failed",
                 "error": error_reason,
