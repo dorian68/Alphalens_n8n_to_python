@@ -1955,7 +1955,7 @@ def final_synthesis_agent(state: DirectionState) -> DirectionState:
     content = (res or "").strip()
     if not content:
         print("⚠️ Empty LLM content")
-        t = supabase_update_job_status(state, "output": {
+        t = supabase_update_job_status(state, {
                 "final_answer": "Unavailable",
                 "confidence_note": "Empty LLM response",
             })
