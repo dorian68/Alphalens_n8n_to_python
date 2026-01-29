@@ -26,6 +26,7 @@ from langchain_core.output_parsers import PydanticOutputParser
 from typing import List, Optional, Literal
 from langchain_core.tools import tool
 from langgraph.prebuilt import ToolNode
+from fastapi.responses import JSONResponse
 
 
 load_dotenv()
@@ -2404,26 +2405,27 @@ async def run_webhook(request: Request):
         if body.get("mode", "") == "trade_generation":
             result = await build_trade2_graph().ainvoke(state)
             raw = result["trade_generation_output"]
-            # raw = extract_first_json(raw)
-            print(f"[trade_generation]type of raw is {raw}")
         else:
             result = await build_run_graph().ainvoke(state)
             raw = result["output"]["final_answer"]
-            print(f"[macro]type of raw is {raw}")
-
-            # clean = strip_json_fences(raw)
-            # # parsed = json.loads(clean)
-            # raw = extract_first_json(raw)
-
-
-
 
         print("Parsed LLM output:", raw)
 
-        supabase_update_job_status(state,{ 
+        if isinstance(raw, str):
+            clean = strip_json_fences(raw)
+            parsed = json.loads(clean)
+        elif isinstance(raw, dict):
+            parsed = raw
+        else:
+            raise TypeError(f"Unexpected output type: {type(raw)}")
+        print(f"[macro]type of raw is {type(parsed)}")
+
+        supabase_response = supabase_update_job_status(state,{ 
                 "job_id" : "NONE",
                 "message": {"content" : { "content": raw  }} }
                 )
+        
+        print(f"Supabase response status : {supabase_response}")
         
         # clean = strif_json_fences(raw)
         # parsed = json.loads(clean)
