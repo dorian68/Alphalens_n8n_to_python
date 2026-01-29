@@ -1734,8 +1734,8 @@ Use this information to produce structured trade setups as per your system promp
     return {
         "trade_generation_output": {
             "final_answer": content,
-            "trade_setup": {state.get('forecast_data')},
-            "risk_surface": {state.get('surface_data')},
+            "trade_setup": {json.dumps(state.get('forecast_data'))},
+            "risk_surface": {json.dumps(state.get('surface_data'))},
             "confidence_note": (
                 "Partner research unavailable"
                 if isinstance(state.get("abcg_research"), dict)
