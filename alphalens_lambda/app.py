@@ -1580,11 +1580,6 @@ async def twelve_data_time_series(
 
 def generate_trade_agent(state: DirectionState) -> DirectionState:
     start = time.time()
-    # print(f"from Generating trade agent {json.dumps(state.get('forecast_data'), indent=2)}", state)
-    # print("----------------------FORECAST_DATA------------------------")
-    # print(json.dumps(state.get("forecast_data"), indent=2))
-    # print("----------------------FORECAST_DATA------------------------")
-
 
     llm = ChatOpenAI(
         model="gpt-4.1-mini",
@@ -1739,8 +1734,8 @@ Use this information to produce structured trade setups as per your system promp
     return {
         "trade_generation_output": {
             "final_answer": content,
-            "trade_setup": {json.dumps(state.get('forecast_data'), indent=2)},
-            "risk_surface": {json.dumps(state.get('surface_data'), indent=2)},
+            "trade_setup": {state.get('forecast_data')},
+            "risk_surface": {state.get('surface_data')},
             "confidence_note": (
                 "Partner research unavailable"
                 if isinstance(state.get("abcg_research"), dict)
