@@ -290,6 +290,7 @@ format_instructions = trade_plan_parser.get_format_instructions()
 
 class DirectionState(TypedDict):
     # mode: str
+    job_id: str | None
     body: Dict[str, Any]
     messages: Annotated[list[BaseMessage], operator.add]
     question: str
@@ -327,6 +328,10 @@ def supabase_update_job_status(state: dict, response_payload: dict) -> dict:
     try:
         supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
         body = state.get("body", {})
+        print("*******************job_id*******************")
+        print("[supabase_update_job_status]")
+        print(body.get("job_id"))
+        print("*******************job_id*******************")
         job_id = body.get("job_id")
         print(f"[supabase_update_job_status]supabase inserting for job #{job_id}")
 
@@ -2394,7 +2399,8 @@ async def run_webhook(request: Request):
             body = json.loads(body)
 
         state = {
-            "body": body,         
+            **body,
+            "body": body, 
             "messages": [],
             "tradeMessages": [],
             "articles": [],
@@ -2407,7 +2413,11 @@ async def run_webhook(request: Request):
             "error": None
         }
 
-        state = body
+        # state = body
+
+        print("********************BODY********************")
+        print(body)
+        print("********************BODY********************")
 
         if body.get("mode", "") == "trade_generation":
             result = await build_trade2_graph().ainvoke(state)
