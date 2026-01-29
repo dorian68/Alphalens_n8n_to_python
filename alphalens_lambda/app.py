@@ -341,7 +341,7 @@ def supabase_update_job_status(state: dict, response_payload: dict) -> dict:
             .eq("id", job_id)
             .execute()
         )
-        # print(f"supabase insert's response: {response}")
+        print(f"supabase insert's response: {response}")
 
         state["supabase"] = {
             "updated": True,
@@ -1676,6 +1676,11 @@ Use this information to produce structured trade setups as per your system promp
     # -----------------------------
     if resp is None:
         print("⚠️ Final agent LLM invocation failed")
+        st = supabase_update_job_status(state,{
+            "trade_generation_output": {
+                "final_answer": "Unavailable",
+                "confidence_note": "Empty LLM response",
+            }})
         return {
             "trade_generation_output": {
                 "final_answer": "Unavailable",
@@ -1709,7 +1714,10 @@ Use this information to produce structured trade setups as per your system promp
     content = (resp.content or "").strip()
     if not content:
         print("⚠️ Empty LLM content")
-
+        st = supabase_update_job_status(state, {
+                    "final_answer": "Unavailable",
+                    "confidence_note": "Empty LLM response",
+                })
         return {
             "trade_generation_output": {
                 "final_answer": "Unavailable",
@@ -1723,6 +1731,9 @@ Use this information to produce structured trade setups as per your system promp
 
     print("✅ Final agent output content received")
     # print("content:", content)
+    st = supabase_update_job_status(state,{ "final_answer": content,
+        "trade_setup": {json.dumps(state.get('forecast_data'), indent=2)},
+        "risk_surface": {json.dumps(state.get('surface_data'), indent=2)}})
     return {
         "trade_generation_output": {
             "final_answer": content,
