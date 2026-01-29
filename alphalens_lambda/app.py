@@ -301,6 +301,7 @@ class DirectionState(TypedDict):
     economic_calendar: Optional[Dict[str,Any]]
     forecast_data: Optional[Dict[str,Any]]
     market_data: Optional[Dict[str,Any]]
+    surface_data: Optional[Dict[str,Any]]
 
     # handle ai trade generation
     isTradeQueued: Optional[bool]
@@ -2203,9 +2204,9 @@ def extract_tool_outputs(state: DirectionState) -> dict:
     # print(market)
     # print("************************MARKET MESSAGE****************************")
 
-    # print("************************SURFACE MESSAGE****************************")
-    # print(surface)
-    # print("************************SURFACE MESSAGE****************************")
+    print("************************SURFACE MESSAGE****************************")
+    print(surface)
+    print("************************SURFACE MESSAGE****************************")
     return {
         "forecast_data": forecast,
         "market_data": market,
