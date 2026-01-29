@@ -328,7 +328,7 @@ def supabase_update_job_status(state: dict, response_payload: dict) -> dict:
         supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
         body = state.get("body", {})
         job_id = body.get("job_id")
-        print(f"[supabase_update_job_status]supabase inserting: {response} for job #{job_id}")
+        print(f"[supabase_update_job_status]supabase inserting for job #{job_id}")
 
         if not job_id:
             raise ValueError("job_id missing in state.body")
