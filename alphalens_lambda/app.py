@@ -328,6 +328,7 @@ def supabase_update_job_status(state: dict, response_payload: dict) -> dict:
         supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
         body = state.get("body", {})
         job_id = body.get("job_id")
+        print(f"[supabase_update_job_status]supabase inserting: {response} for job #{job_id}")
 
         if not job_id:
             raise ValueError("job_id missing in state.body")
@@ -343,7 +344,7 @@ def supabase_update_job_status(state: dict, response_payload: dict) -> dict:
             .eq("id", job_id)
             .execute()
         )
-        print(f"supabase insert's response: {response}")
+        print(f"[supabase_update_job_status]supabase insert's response: {response} for job #{job_id}")
 
         state["supabase"] = {
             "updated": True,
@@ -1729,8 +1730,8 @@ Use this information to produce structured trade setups as per your system promp
     print("✅ Final agent output content received")
     # print("content:", content)
     st = supabase_update_job_status(state,{ "final_answer": content,
-        "trade_setup": {json.dumps(state.get('forecast_data'), indent=2)},
-        "risk_surface": {json.dumps(state.get('surface_data'), indent=2)}})
+        "trade_setup": {json.dumps(state.get('forecast_data'))},
+        "risk_surface": {json.dumps(state.get('surface_data'))}})
     return {
         "trade_generation_output": {
             "final_answer": content,
@@ -2200,9 +2201,9 @@ def extract_tool_outputs(state: DirectionState) -> dict:
     # print(market)
     # print("************************MARKET MESSAGE****************************")
 
-    print("************************SURFACE MESSAGE****************************")
-    print(surface)
-    print("************************SURFACE MESSAGE****************************")
+    # print("************************SURFACE MESSAGE****************************")
+    # print(surface)
+    # print("************************SURFACE MESSAGE****************************")
     return {
         "forecast_data": forecast,
         "market_data": market,
@@ -2368,6 +2369,17 @@ def extract_first_json(text: str) -> dict:
         return obj
     except json.JSONDecodeError as e:
         raise ValueError(f"No valid JSON found: {e}") from e
+    
+def has_nested_key(d: dict, keys: list[str]) -> bool:
+    current = d
+    for k in keys:
+        if not isinstance(current, dict):
+            return False
+        if k not in current:
+            return False
+        current = current[k]
+    return True
+
 
 @app.post("/run")
 async def run_webhook(request: Request):
@@ -2400,11 +2412,14 @@ async def run_webhook(request: Request):
         if body.get("mode", "") == "trade_generation":
             result = await build_trade2_graph().ainvoke(state)
             raw = result["trade_generation_output"]
+            print("********************RISK_SURFACE********************")
+            print(has_nested_key(raw,["risk_surface"]))
+            print("********************RISK_SURFACE********************")
         else:
             result = await build_run_graph().ainvoke(state)
             raw = result["output"]["final_answer"]
 
-        print("Parsed LLM output:", raw)
+        # print("[MAIN]Parsed LLM output:", raw)
 
         if isinstance(raw, str):
             clean = strip_json_fences(raw)
