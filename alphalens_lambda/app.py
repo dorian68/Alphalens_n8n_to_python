@@ -2191,21 +2191,21 @@ def extract_tool_outputs(state: DirectionState) -> dict:
                 print(f"surface_probability_aws_api TOUCHE")
                 print("***********************") 
 
-    print("************************STATE MESSAGE****************************")
-    print(state["messages"])
-    print("************************STATE MESSAGE****************************")
+    # print("************************STATE MESSAGE****************************")
+    # print(state["messages"])
+    # print("************************STATE MESSAGE****************************")
 
-    print("************************FORECAST MESSAGE****************************")
-    print(forecast)
-    print("************************FORECAST MESSAGE****************************")
+    # print("************************FORECAST MESSAGE****************************")
+    # print(forecast)
+    # print("************************FORECAST MESSAGE****************************")
 
-    print("************************MARKET MESSAGE****************************")
-    print(market)
-    print("************************MARKET MESSAGE****************************")
+    # print("************************MARKET MESSAGE****************************")
+    # print(market)
+    # print("************************MARKET MESSAGE****************************")
 
-    print("************************SURFACE MESSAGE****************************")
-    print(surface)
-    print("************************SURFACE MESSAGE****************************")
+    # print("************************SURFACE MESSAGE****************************")
+    # print(surface)
+    # print("************************SURFACE MESSAGE****************************")
     return {
         "forecast_data": forecast,
         "market_data": market,
