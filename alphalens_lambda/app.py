@@ -319,7 +319,7 @@ class DirectionState(TypedDict):
     output: Dict[str, Any]
     error: Optional[str]
 
-def supabase_update_job_status(state: dict, response_payload: dict) -> dict:
+def supabase_update_job_status(state: dict, response_payload: dict, status: Optional[str] = "completed") -> dict:
     """
     LangGraph node.
     Equivalent n8n Supabase 'update jobs' node.
@@ -342,9 +342,11 @@ def supabase_update_job_status(state: dict, response_payload: dict) -> dict:
             supabase
             .table("jobs")
             .update({
-                "status": "completed",
+                "status": status,
                 "progress_message": "Reading the news",
-                "response_payload": response_payload,
+                "response_payload": { "job_id" : "NONE",
+                "message": {"content" : { "content": response_payload  }} }
+                ,
             })
             .eq("id", job_id)
             .execute()
@@ -401,10 +403,26 @@ async def fetch_finnhub_news_last_30d() -> list[dict]:
         })
     end_time = time.time()
     # print(f"Fetched {len(articles)} articles from Finnhub in {end_time - start_time:.2f} seconds.")
-    # print(articles)  # print first 2 articles for debugging
+    print(articles[:2])  # print first 2 articles for debugging
     return articles
 
-SYSTEM_PROMPT_DATA_COLLECTION = f"""
+
+async def data_collection_llm_agent(state: DirectionState) -> dict:
+    """
+    LangGraph node.
+    Deterministic fetch + LLM reasoning.
+    """
+    start = time.time()
+    question = state["question"]
+
+    # 1️⃣ Fetch data (tool, deterministic)
+    articles = await fetch_finnhub_news_last_30d()
+
+    # if not articles:
+    #     return {"macro_insight": "no fresh institutional data available"}
+
+    # 2️⃣ LLM reasoning (agent cognition)
+    SYSTEM_PROMPT_DATA_COLLECTION = f"""
 Today’s date is: { today_iso }  
 You are a macroeconomic trading assistant specialized in FX, commodities, and crypto markets.
 
@@ -464,21 +482,6 @@ attribution is needed, use generic phrasing while keeping the existing JSON stru
 #    - Use only `headline`, `summary`, and `datetime` fields for reasoning. 
 #    - Reference each article used by **source name + publication date**.  
 
-async def data_collection_llm_agent(state: DirectionState) -> dict:
-    """
-    LangGraph node.
-    Deterministic fetch + LLM reasoning.
-    """
-    start = time.time()
-    question = state["question"]
-
-    # 1️⃣ Fetch data (tool, deterministic)
-    articles = await fetch_finnhub_news_last_30d()
-
-    # if not articles:
-    #     return {"macro_insight": "no fresh institutional data available"}
-
-    # 2️⃣ LLM reasoning (agent cognition)
 
     user_prompt = f"""
 Question:
@@ -524,9 +527,12 @@ ARTICLES:
     print(f"Data Collection LLM Agent completed in {end - start:.2f} seconds.")
     # print("****************************************")
     # print("Data Collection LLM Agent response:", res)
-    # print("****************************************")
-    # print("articles:", articles)
-    # print("****************************************")
+    print("****************************************")
+    print("articles:", articles)
+    print("****************************************")
+    print("****************************************")
+    print("res:", res)
+    print("****************************************")
     return {
         "articles": res
     }
@@ -1683,7 +1689,8 @@ Use this information to produce structured trade setups as per your system promp
             "trade_generation_output": {
                 "final_answer": "Unavailable",
                 "confidence_note": "Empty LLM response",
-            }})
+            }},            
+            "error",)
         return {
             "trade_generation_output": {
                 "final_answer": "Unavailable",
@@ -1720,7 +1727,8 @@ Use this information to produce structured trade setups as per your system promp
         st = supabase_update_job_status(state, {
                     "final_answer": "Unavailable",
                     "confidence_note": "Empty LLM response",
-                })
+                },
+                "error")
         return {
             "trade_generation_output": {
                 "final_answer": "Unavailable",
@@ -1950,7 +1958,9 @@ def final_synthesis_agent(state: DirectionState) -> DirectionState:
                 "final_answer": "Unavailable",
                 "confidence_note": "LLM call failed",
                 "error": error_reason,
-        })
+        },
+        "error",
+        )
         return {
             "output": {
                 "final_answer": "Unavailable",
@@ -1972,7 +1982,8 @@ def final_synthesis_agent(state: DirectionState) -> DirectionState:
         t = supabase_update_job_status(state, {
                 "final_answer": "Unavailable",
                 "confidence_note": "Empty LLM response",
-            })
+            },
+            "error")
         return {
             "output": {
                 "final_answer": "Unavailable",
