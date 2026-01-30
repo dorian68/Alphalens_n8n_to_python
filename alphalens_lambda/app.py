@@ -2406,12 +2406,14 @@ async def run_webhook(request: Request):
 
         start = time.time()
         body = await request.json()
+        job_id = body.get("job_id")
         if isinstance(body, str):
             body = json.loads(body)
 
         state = {
             **body,
             "body": body, 
+            "job_id": job_id,
             "messages": [],
             "tradeMessages": [],
             "articles": [],
@@ -2452,8 +2454,8 @@ async def run_webhook(request: Request):
         print(f"[macro]type of raw is {type(parsed)}")
 
         supabase_response = supabase_update_job_status(state,{ 
-                "job_id" : "NONE",
-                "message": {"content" : { "content": raw  }} }
+                "job_id" : job_id,
+                "message": {"content" : { "content": raw }} }
                 )
         
         print(f"Supabase response status : {supabase_response}")
@@ -2469,13 +2471,13 @@ async def run_webhook(request: Request):
             "body": { 
                 "message" : { 
                 "status" : "done",
-                "job_id" : "NONE",
+                "job_id" : job_id,
                 "message": {"content" : { "content": raw}} }
                 },
             "message": { 
                 "message" : { 
                 "status" : "done",
-                "job_id" : "NONE",
+                "job_id" : job_id,
                 "message": {"content" : { "content": raw  }} }
                 }
         }
