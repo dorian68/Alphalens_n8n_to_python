@@ -328,12 +328,12 @@ def supabase_update_job_status(state: dict, response_payload: dict, status: Opti
     try:
         supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
         body = state.get("body", {})
-        print("*******************job_id*******************")
-        print("[supabase_update_job_status]")
-        print(body.get("job_id"))
-        print("*******************job_id*******************")
+        # print("*******************job_id*******************")
+        # print("[supabase_update_job_status]")
+        # print(body.get("job_id"))
+        # print("*******************job_id*******************")
         job_id = body.get("job_id")
-        print(f"[supabase_update_job_status]supabase inserting for job #{job_id}")
+        # print(f"[supabase_update_job_status]supabase inserting for job #{job_id}")
 
         if not job_id:
             raise ValueError("job_id missing in state.body")
@@ -403,7 +403,7 @@ async def fetch_finnhub_news_last_30d() -> list[dict]:
         })
     end_time = time.time()
     # print(f"Fetched {len(articles)} articles from Finnhub in {end_time - start_time:.2f} seconds.")
-    print(articles[:2])  # print first 2 articles for debugging
+    # print(articles[:2])  # print first 2 articles for debugging
     return articles
 
 
@@ -526,13 +526,13 @@ ARTICLES:
     end = time.time()
     print(f"Data Collection LLM Agent completed in {end - start:.2f} seconds.")
     # print("****************************************")
-    # print("Data Collection LLM Agent response:", res)
-    print("****************************************")
-    print("articles:", articles)
-    print("****************************************")
-    print("****************************************")
-    print("res:", res)
-    print("****************************************")
+    # # print("Data Collection LLM Agent response:", res)
+    # print("****************************************")
+    # print("articles:", articles)
+    # print("****************************************")
+    # print("****************************************")
+    # print("res:", res)
+    # print("****************************************")
     return {
         "articles": res
     }
@@ -2428,16 +2428,16 @@ async def run_webhook(request: Request):
 
         # state = body
 
-        print("********************BODY********************")
-        print(body)
-        print("********************BODY********************")
+        # print("********************BODY********************")
+        # print(body)
+        # print("********************BODY********************")
 
         if body.get("mode", "") == "trade_generation":
             result = await build_trade2_graph().ainvoke(state)
             raw = result["trade_generation_output"]
-            print("********************RISK_SURFACE********************")
-            print(has_nested_key(raw,["risk_surface"]))
-            print("********************RISK_SURFACE********************")
+            # print("********************RISK_SURFACE********************")
+            # print(has_nested_key(raw,["risk_surface"]))
+            # print("********************RISK_SURFACE********************")
         else:
             result = await build_run_graph().ainvoke(state)
             raw = result["output"]["final_answer"]
@@ -2483,6 +2483,11 @@ async def run_webhook(request: Request):
         }
 
     except Exception as e:
+        supabase_response = supabase_update_job_status(state,{ 
+            "job_id" : job_id,
+            "message": {"content" : { "content": raw }} },
+            "error"
+            )
         return {
             "statusCode": 500,
             "body": json.dumps({
