@@ -351,7 +351,7 @@ def supabase_update_job_status(state: dict, response_payload: dict, status: Opti
             .eq("id", job_id)
             .execute()
         )
-        print(f"[supabase_update_job_status]supabase insert's response: {response} for job #{job_id}")
+        print(f"[supabase_update_job_status]supabase insert's response for job #{job_id}")
 
         state["supabase"] = {
             "updated": True,
