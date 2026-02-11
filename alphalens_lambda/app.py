@@ -406,7 +406,6 @@ async def fetch_finnhub_news_last_30d() -> list[dict]:
     # print(articles[:2])  # print first 2 articles for debugging
     return articles
 
-
 async def data_collection_llm_agent(state: DirectionState) -> dict:
     """
     LangGraph node.
@@ -1807,16 +1806,28 @@ def final_synthesis_agent(state: DirectionState) -> DirectionState:
     ---
 
     Executive Summary  
-    {{2–3 sentences}}  
+    {{5-7 sentences}}  
 
     Fundamental Analysis  
     {{Narrative + bullets}}  
 
-    Directional Bias  
-    {{Bullish/Bearish/Neutral}} 
+    Directional Bias (CONDITIONAL) 
+    (- Only include this entire "Key Levels" section in the `content` narrative IF AND ONLY IF the user query explicitly mentions at least one tradable instrument (FX pair, index, commodity, crypto, rates future, etc.) OR the analysis clearly revolves around a specific instrument provided in inputs.  
+    - If NO instrument is explicitly referenced in the user query, you MUST OMIT the "Key Levels" section entirely from the `content` narrative (do not show the header, do not show Support/Resistance).  
+    - If multiple instruments are referenced, include Key Levels per instrument in a clean institutional format.)
+
+    {{Bullish/Bearish/Neutral}} (CONDITIONAL) 
+    (- Only include this entire "Key Levels" section in the `content` narrative IF AND ONLY IF the user query explicitly mentions at least one tradable instrument (FX pair, index, commodity, crypto, rates future, etc.) OR the analysis clearly revolves around a specific instrument provided in inputs.  
+    - If NO instrument is explicitly referenced in the user query, you MUST OMIT the "Key Levels" section entirely from the `content` narrative (do not show the header, do not show Support/Resistance).  
+    - If multiple instruments are referenced, include Key Levels per instrument in a clean institutional format.)
+
     Confidence: "{{XX}}%" 
 
-    Key Levels  
+    Key Levels  (CONDITIONAL)  
+    (- Only include this entire "Key Levels" section in the `content` narrative IF AND ONLY IF the user query explicitly mentions at least one tradable instrument (FX pair, index, commodity, crypto, rates future, etc.) OR the analysis clearly revolves around a specific instrument provided in inputs.  
+    - If NO instrument is explicitly referenced in the user query, you MUST OMIT the "Key Levels" section entirely from the `content` narrative (do not show the header, do not show Support/Resistance).  
+    - If multiple instruments are referenced, include Key Levels per instrument in a clean institutional format.)
+
     Support  
     {{level1}}  
     {{level2}}  
@@ -1834,9 +1845,12 @@ def final_synthesis_agent(state: DirectionState) -> DirectionState:
 
     3. **Fundamentals Enrichment**  
     - All macroeconomic fundamentals (releases, actual, consensus, previous, timestamps) must come exclusively from the Finnhub Economic Calendar API.  
-    - If an event is not present in Finnhub, mark it `"Unavailable"`.  
     - Perplexity or other news sources may only be used for qualitative context (commentary, sentiment), never for datapoints.
-    - Always include: indicator, actual, consensus, previous, release timestamp, checked_at.  
+    - Structured fundamentals objects must include: indicator, actual, consensus, previous, release timestamp, checked_at.
+    - If an event is not present in Finnhub, set those structured fields to "Unavailable" (or empty where schema requires).
+    - In the `content` narrative, NEVER display "Unavailable". Instead:
+    - Only mention events with at least one available numeric datapoint OR a confirmed scheduled timestamp.
+    - If no usable datapoints exist for the week, include a single concise line: "No confirmed macro prints available in the calendar snapshot at time of writing." (no placeholders).
     - If web access fails, add `"warning": "web access to FF/TE unavailable"`.  
     - **Enriched note must be the base_report enriched with:**  
         - inline numeric clarifications,  
@@ -1859,7 +1873,9 @@ def final_synthesis_agent(state: DirectionState) -> DirectionState:
     This is the **main output of your work**.  
     All other fields are optional context, metadata, and traceability, but `content` is the only mandatory narrative output.  
 
-    Every field must exist in the JSON (if data is missing, use empty string, empty array, or `"Unavailable"`).  
+    Every field must exist in the JSON to satisfy schema parsing.
+    - For missing data, prefer empty strings/arrays/objects.
+    - Use "Unavailable" ONLY in structured traceability fields where required by schema, never in `content`.
     Return only JSON, no free text.  
 
     ---
@@ -1881,7 +1897,7 @@ def final_synthesis_agent(state: DirectionState) -> DirectionState:
     ## CRITICAL RULES
 
     - Market data → ONLY Twelve Data (valid intervals only).  
-    - Fundamentals → ONLY ForexFactory/TradingEconomics.  
+    - Fundamentals → ONLY Finnhub Economic Calendar snapshot provided at runtime.
     - News → ONLY original publishers.  
     - Ranges 3d/5d must always be computed locally from 1day data (never API calls).  
     - Missing sections or invalid JSON will invalidate your output.  
@@ -1897,6 +1913,23 @@ def final_synthesis_agent(state: DirectionState) -> DirectionState:
     - Do NOT add explanations or text before or after
     - The first character MUST be '{{'
     - The last character MUST be '}}'
+⚠️ Instrument Detection Rule (NO REGRESSION):
+    - Determine whether the user query contains explicit instrument tickers/symbols (e.g., "EURUSD", "GBPJPY", "DXY", "XAUUSD", "WTI", "SPX", "NAS100", "BTCUSD") or clearly requests levels for a specific instrument.
+    - If NO instrument is present:
+    - The `content` field MUST NOT contain any "Key Levels" / "Support" / "Resistance" section.
+    - Any schema fields related to key levels (if required by the parser schema) MUST still be present in the JSON but set to empty values or "Unavailable" (per schema types) to preserve strict parsing and avoid regressions.
+    - If one or more instruments are present:
+    - Include Key Levels in `content` and populate the key-level fields normally.
+⚠️ Business Value Rule (NO PLACEHOLDERS IN CLIENT-FACING NARRATIVE):
+    - The `content` field is client-facing and must NEVER contain placeholder tokens such as "Unavailable", "N/A", "Unknown", "Missing", empty templates, or filler text.
+    - If data is missing, you must OMIT the corresponding sentence/line/section from `content` rather than writing placeholders.
+    - Placeholders are allowed ONLY in non-client-facing traceability fields (e.g., fundamentals array objects), never in `content`.
+⚠️ Conditional Section Rendering Rule:
+    - In `content`, include ONLY sections that contain at least one concrete, non-placeholder data point or actionable insight.
+    - If a section would contain only placeholders or generic statements, OMIT that section entirely from `content`.
+    - However, keep the JSON schema fields present (as required by the parser), using empty values or "Unavailable" only in the structured data fields, not in `content`.
+
+
     
     You MUST return valid JSON following EXACTLY this schema.
         that follows EXACTLY this schema:
@@ -2395,7 +2428,6 @@ def has_nested_key(d: dict, keys: list[str]) -> bool:
             return False
         current = current[k]
     return True
-
 
 @app.post("/run")
 async def run_webhook(request: Request):
