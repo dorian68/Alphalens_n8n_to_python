@@ -1806,27 +1806,20 @@ def final_synthesis_agent(state: DirectionState) -> DirectionState:
     ---
 
     Executive Summary  
-    {{5-7 sentences}}  
+    {{8-10 sentences}}  
 
     Fundamental Analysis  
     {{Narrative + bullets}}  
 
-    Directional Bias (CONDITIONAL) 
-    (- Only include this entire "Key Levels" section in the `content` narrative IF AND ONLY IF the user query explicitly mentions at least one tradable instrument (FX pair, index, commodity, crypto, rates future, etc.) OR the analysis clearly revolves around a specific instrument provided in inputs.  
-    - If NO instrument is explicitly referenced in the user query, you MUST OMIT the "Key Levels" section entirely from the `content` narrative (do not show the header, do not show Support/Resistance).  
-    - If multiple instruments are referenced, include Key Levels per instrument in a clean institutional format.)
+    Directional Bias (CONDITIONAL on HAS_INSTRUMENT)
+    {{Bullish/Bearish/Neutral}}
 
-    {{Bullish/Bearish/Neutral}} (CONDITIONAL) 
-    (- Only include this entire "Key Levels" section in the `content` narrative IF AND ONLY IF the user query explicitly mentions at least one tradable instrument (FX pair, index, commodity, crypto, rates future, etc.) OR the analysis clearly revolves around a specific instrument provided in inputs.  
-    - If NO instrument is explicitly referenced in the user query, you MUST OMIT the "Key Levels" section entirely from the `content` narrative (do not show the header, do not show Support/Resistance).  
-    - If multiple instruments are referenced, include Key Levels per instrument in a clean institutional format.)
+    Confidence (CONDITIONAL on HAS_INSTRUMENT)
+    "{{XX}}%"
 
-    Confidence: "{{XX}}%" 
-
-    Key Levels  (CONDITIONAL)  
-    (- Only include this entire "Key Levels" section in the `content` narrative IF AND ONLY IF the user query explicitly mentions at least one tradable instrument (FX pair, index, commodity, crypto, rates future, etc.) OR the analysis clearly revolves around a specific instrument provided in inputs.  
-    - If NO instrument is explicitly referenced in the user query, you MUST OMIT the "Key Levels" section entirely from the `content` narrative (do not show the header, do not show Support/Resistance).  
-    - If multiple instruments are referenced, include Key Levels per instrument in a clean institutional format.)
+    Key Levels (CONDITIONAL on HAS_INSTRUMENT)
+    Support ...
+    Resistance ...
 
     Support  
     {{level1}}  
@@ -1893,6 +1886,15 @@ def final_synthesis_agent(state: DirectionState) -> DirectionState:
     - Finnhub economic calendar : || {json.dumps(state.get("economic_calendar_agent"), ensure_ascii=False)} ||
 
     ---
+
+    ### CONDITIONAL DISPLAY — HAS_INSTRUMENT
+    
+    This condition applies to: Directional Bias, Confidence, Key Levels.
+    Include these sections in `content` ONLY if the user query mentions at least one tradable instrument
+    or the analysis is explicitly instrument-specific based on inputs.
+    If not, OMIT the headers and all subfields entirely (no placeholders).
+    If multiple instruments exist, format per instrument clearly.
+
 
     ## CRITICAL RULES
 
