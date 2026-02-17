@@ -1,0 +1,360 @@
+{
+  "status": "success",
+  "elapsed_sec": 2.06,
+  "data": {
+    "ok": true,
+    "status": "ok",
+    "message": "forecast completed",
+    "request_id": "21e80436-1391-4a2e-930f-8ef4553c3431",
+    "timestamp": "2026-02-16T23:08:48Z",
+    "request": {
+      "symbol": "BTC/USD",
+      "timeframe": "1h",
+      "horizons": [
+        12,
+        24
+      ],
+      "use_montecarlo": true,
+      "paths": 1000,
+      "model_type": "nhits",
+      "trade_mode": "forward",
+      "include_predictions": true,
+      "include_metadata": true,
+      "include_model_info": true,
+      "force_retrain": false,
+      "refresh_data": false
+    },
+    "warnings": [],
+    "data": {
+      "payload": {
+        "symbol": "BTC/USD",
+        "asOf": "2026-02-16T22:00:00+00:00",
+        "timeframe": "1h",
+        "use_montecarlo": true,
+        "horizons": [
+          {
+            "h": "12h",
+            "direction": "short",
+            "trade_mode": "forward",
+            "entry_price": 66746.19674328518,
+            "entry_type": "conditional_forecast",
+            "entry_method": "median",
+            "forecast": {
+              "medianPrice": 66746.19674328518,
+              "p20": 65490.84074953318,
+              "p80": 68053.47525448556
+            },
+            "tp": 65490.84074953318,
+            "sl": 68053.47525448556,
+            "riskReward": 0.9603,
+            "prob_hit_tp_before_sl": 0.0,
+            "confidence": 0.6441,
+            "position_size": 1.0,
+            "model": {
+              "mean": "NHITS",
+              "vol": "EGARCH_t",
+              "calibrated": true
+            }
+          },
+          {
+            "h": "24h",
+            "direction": "short",
+            "trade_mode": "forward",
+            "entry_price": 65722.64121309148,
+            "entry_type": "conditional_forecast",
+            "entry_method": "median",
+            "forecast": {
+              "medianPrice": 65722.64121309148,
+              "p20": 63964.901913549824,
+              "p80": 67477.74096102067
+            },
+            "tp": 63964.901913549824,
+            "sl": 67477.74096102067,
+            "riskReward": 1.0015,
+            "prob_hit_tp_before_sl": 0.0,
+            "confidence": 0.6441,
+            "position_size": 1.0,
+            "model": {
+              "mean": "NHITS",
+              "vol": "EGARCH_t",
+              "calibrated": true
+            }
+          }
+        ],
+        "entry_price": 66746.19674328518
+      },
+      "as_of": "2026-02-16T22:00:00+00:00",
+      "data_hash": "f8a7a686c210d0feedc0139351f2fa9b291de5d281dfc75537cff03d27f2122c",
+      "durations": {
+        "fetch_seconds": 0.02729360992088914,
+        "mean_model_fit_seconds": 0.0,
+        "garch_fit_seconds": 0.0,
+        "garch_forecast_seconds": 0.000994096975773573,
+        "monte_carlo_seconds": 0.00582315307110548,
+        "forecast_loop_seconds": 0.22145729511976242,
+        "total_seconds": 0.2529399851337075
+      },
+      "metadata": {
+        "symbol": "BTC/USD",
+        "timeframe": "1h",
+        "horizons": [
+          12,
+          24
+        ],
+        "timestamp": "2026-02-16T23:08:48Z",
+        "timestamp_slug": "20260216T230848Z",
+        "as_of": "2026-02-16T22:00:00+00:00",
+        "n_observations": 6370,
+        "data_hash": "f8a7a686c210d0feedc0139351f2fa9b291de5d281dfc75537cff03d27f2122c",
+        "use_montecarlo": true,
+        "monte_carlo_paths": 1000,
+        "durations": {
+          "fetch_seconds": 0.02729360992088914,
+          "mean_model_fit_seconds": 0.0,
+          "garch_fit_seconds": 0.0,
+          "garch_forecast_seconds": 0.000994096975773573,
+          "monte_carlo_seconds": 0.00582315307110548,
+          "forecast_loop_seconds": 0.22145729511976242,
+          "total_seconds": 0.2529399851337075
+        },
+        "mean_model": {
+          "name": "NHITS",
+          "class": "NHiTSForecaster",
+          "backend_class": "NHiTSModel",
+          "hyperparameters": {
+            "output_chunk_shift": 0,
+            "num_stacks": 3,
+            "num_blocks": 1,
+            "num_layers": 2,
+            "layer_widths": 512,
+            "pooling_kernel_sizes": null,
+            "n_freq_downsample": null,
+            "dropout": 0.1,
+            "activation": "ReLU",
+            "MaxPool1d": true,
+            "input_chunk_length": 48,
+            "output_chunk_length": 24,
+            "n_epochs": 100,
+            "batch_size": 20000,
+            "random_state": 42,
+            "loss_fn": {
+              "training": true,
+              "reduction": "mean",
+              "beta": 1.0
+            },
+            "optimizer_kwargs": {
+              "lr": 0.001
+            },
+            "pl_trainer_kwargs": {
+              "accelerator": "cpu"
+            }
+          }
+        },
+        "vol_model": {
+          "class": "EGARCHVolModel",
+          "distribution": "Student-t",
+          "degrees_of_freedom": 6.0,
+          "skew": 0.0,
+          "forecast_method": "realized_vol",
+          "sigma_last": 0.008235131622557807
+        },
+        "environment": {
+          "python": "3.12.3",
+          "numpy": "1.26.4",
+          "pandas": "2.3.3",
+          "platform": "Linux-6.14.0-1018-aws-x86_64-with-glibc2.39"
+        },
+        "residual_std": 0.004387798689505617,
+        "last_price": 68558.98,
+        "execution_price": 68698.0,
+        "price_modeling": 68558.98,
+        "price_execution": 68698.0,
+        "execution_price_source": "live",
+        "sigma_path_min": 0.008235131622557807,
+        "sigma_path_max": 0.008235131622557807
+      },
+      "predictions": {
+        "12h": [
+          {
+            "ds": "2026-02-07T20:00:00Z",
+            "yhat": 67746.4375
+          },
+          {
+            "ds": "2026-02-07T21:00:00Z",
+            "yhat": 67830.703125
+          },
+          {
+            "ds": "2026-02-07T22:00:00Z",
+            "yhat": 67451.4765625
+          },
+          {
+            "ds": "2026-02-07T23:00:00Z",
+            "yhat": 68026.203125
+          },
+          {
+            "ds": "2026-02-08T00:00:00Z",
+            "yhat": 67807.875
+          },
+          {
+            "ds": "2026-02-08T01:00:00Z",
+            "yhat": 67599.6015625
+          },
+          {
+            "ds": "2026-02-08T02:00:00Z",
+            "yhat": 67629.859375
+          },
+          {
+            "ds": "2026-02-08T03:00:00Z",
+            "yhat": 67352.0
+          },
+          {
+            "ds": "2026-02-08T04:00:00Z",
+            "yhat": 67446.65625
+          },
+          {
+            "ds": "2026-02-08T05:00:00Z",
+            "yhat": 67154.515625
+          },
+          {
+            "ds": "2026-02-08T06:00:00Z",
+            "yhat": 67155.828125
+          },
+          {
+            "ds": "2026-02-08T07:00:00Z",
+            "yhat": 66745.15625
+          }
+        ],
+        "24h": [
+          {
+            "ds": "2026-02-07T20:00:00Z",
+            "yhat": 67746.4375
+          },
+          {
+            "ds": "2026-02-07T21:00:00Z",
+            "yhat": 67830.703125
+          },
+          {
+            "ds": "2026-02-07T22:00:00Z",
+            "yhat": 67451.4765625
+          },
+          {
+            "ds": "2026-02-07T23:00:00Z",
+            "yhat": 68026.203125
+          },
+          {
+            "ds": "2026-02-08T00:00:00Z",
+            "yhat": 67807.875
+          },
+          {
+            "ds": "2026-02-08T01:00:00Z",
+            "yhat": 67599.6015625
+          },
+          {
+            "ds": "2026-02-08T02:00:00Z",
+            "yhat": 67629.859375
+          },
+          {
+            "ds": "2026-02-08T03:00:00Z",
+            "yhat": 67352.0
+          },
+          {
+            "ds": "2026-02-08T04:00:00Z",
+            "yhat": 67446.65625
+          },
+          {
+            "ds": "2026-02-08T05:00:00Z",
+            "yhat": 67154.515625
+          },
+          {
+            "ds": "2026-02-08T06:00:00Z",
+            "yhat": 67155.828125
+          },
+          {
+            "ds": "2026-02-08T07:00:00Z",
+            "yhat": 66745.15625
+          },
+          {
+            "ds": "2026-02-08T08:00:00Z",
+            "yhat": 66915.453125
+          },
+          {
+            "ds": "2026-02-08T09:00:00Z",
+            "yhat": 66797.09375
+          },
+          {
+            "ds": "2026-02-08T10:00:00Z",
+            "yhat": 66522.640625
+          },
+          {
+            "ds": "2026-02-08T11:00:00Z",
+            "yhat": 66257.7890625
+          },
+          {
+            "ds": "2026-02-08T12:00:00Z",
+            "yhat": 65901.6875
+          },
+          {
+            "ds": "2026-02-08T13:00:00Z",
+            "yhat": 66044.546875
+          },
+          {
+            "ds": "2026-02-08T14:00:00Z",
+            "yhat": 66073.3125
+          },
+          {
+            "ds": "2026-02-08T15:00:00Z",
+            "yhat": 65977.3125
+          },
+          {
+            "ds": "2026-02-08T16:00:00Z",
+            "yhat": 66204.0234375
+          },
+          {
+            "ds": "2026-02-08T17:00:00Z",
+            "yhat": 65974.421875
+          },
+          {
+            "ds": "2026-02-08T18:00:00Z",
+            "yhat": 65921.328125
+          },
+          {
+            "ds": "2026-02-08T19:00:00Z",
+            "yhat": 65671.1015625
+          }
+        ]
+      },
+      "model_status": {
+        "model_type": "nhits",
+        "device": "cpu",
+        "mean": {
+          "model_type": "nhits",
+          "model_dir": "/home/ubuntu/.vscode-server/projects/AI_TRADE_SETUP/PROD/alphalens_trade_generation/models/nhits/BTC_USD/1h",
+          "metadata_path": "/home/ubuntu/.vscode-server/projects/AI_TRADE_SETUP/PROD/alphalens_trade_generation/models/nhits/BTC_USD/1h/metadata.json",
+          "metadata_exists": true,
+          "storage_format": "state_dict",
+          "class_path": "alphalens_forecast.models.nhits_model.NHiTSForecaster",
+          "artifact_path": "/home/ubuntu/.vscode-server/projects/AI_TRADE_SETUP/PROD/alphalens_trade_generation/models/nhits/BTC_USD/1h/model.pth",
+          "artifact_exists": true,
+          "legacy_path": "/home/ubuntu/.vscode-server/projects/AI_TRADE_SETUP/PROD/alphalens_trade_generation/models/nhits/BTC_USD/1h/model.pkl",
+          "legacy_exists": false,
+          "device": "cpu",
+          "loaded": true
+        },
+        "vol": {
+          "model_type": "egarch",
+          "model_dir": "/home/ubuntu/.vscode-server/projects/AI_TRADE_SETUP/PROD/alphalens_trade_generation/models/egarch/BTC_USD/1h",
+          "metadata_path": "/home/ubuntu/.vscode-server/projects/AI_TRADE_SETUP/PROD/alphalens_trade_generation/models/egarch/BTC_USD/1h/metadata.json",
+          "metadata_exists": true,
+          "storage_format": "state_dict",
+          "class_path": "alphalens_forecast.models.garch_model.EGARCHVolModel",
+          "artifact_path": "/home/ubuntu/.vscode-server/projects/AI_TRADE_SETUP/PROD/alphalens_trade_generation/models/egarch/BTC_USD/1h/model.pth",
+          "artifact_exists": true,
+          "legacy_path": "/home/ubuntu/.vscode-server/projects/AI_TRADE_SETUP/PROD/alphalens_trade_generation/models/egarch/BTC_USD/1h/model.pkl",
+          "legacy_exists": false,
+          "loaded": true
+        }
+      },
+      "total_seconds": 1.368
+    }
+  }
+}

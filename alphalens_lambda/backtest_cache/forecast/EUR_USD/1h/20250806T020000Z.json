@@ -1,0 +1,8 @@
+{
+  "status": "error",
+  "error_type": "http_error",
+  "http_status": 500,
+  "message": "Forecast API returned error",
+  "response_text": "{\n  \"ok\": false,\n  \"status\": \"error\",\n  \"message\": \"Unexpected error while running forecast\",\n  \"request_id\": \"4603c2e0-9eab-4a04-8d25-1402be4edd59\",\n  \"timestamp\": \"2026-02-16T22:42:23Z\",\n  \"details\": {\n    \"error\": \"'NoneType' object has no attribute 'set_predict_parameters'\"\n  }\n}",
+  "elapsed_sec": 18.08
+}

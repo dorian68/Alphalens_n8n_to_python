@@ -1,0 +1,8 @@
+{
+  "status": "error",
+  "error_type": "http_error",
+  "http_status": 503,
+  "message": "Forecast API returned error",
+  "response_text": "{\n  \"ok\": false,\n  \"status\": \"s3_required\",\n  \"message\": \"Failed to load nhits model for EUR/USD @ 1h.\",\n  \"request_id\": \"586319fc-f7c1-45fd-8e42-a7b91a87a9c4\",\n  \"timestamp\": \"2026-02-16T22:39:39Z\",\n  \"details\": {\n    \"error\": \"Failed to load nhits model for EUR/USD @ 1h.\"\n  },\n  \"hint\": \"Ensure S3-only settings and credentials are configured.\"\n}",
+  "elapsed_sec": 11.6
+}

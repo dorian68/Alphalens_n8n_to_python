@@ -495,6 +495,8 @@ ARTICLES:
         api_key=os.environ.get("CEREBRAS_API_KEY")
     )
 
+    res = ""
+    error_reason = None
     try:
         stream = client.chat.completions.create(
             messages=[
@@ -507,7 +509,7 @@ ARTICLES:
                     "content": user_prompt
                 }
             ],
-            model="llama-3.3-70b",
+            model="llama3.1-8b",
             stream=True,
             max_completion_tokens=65000,
             temperature=0.1,
@@ -521,6 +523,7 @@ ARTICLES:
 
     except Exception as e:
         error_reason = f"LLM invocation failed: {str(e)}"
+        print(f"[data_collection_llm_agent] Cerebras call failed: {error_reason}")
 
     end = time.time()
     print(f"Data Collection LLM Agent completed in {end - start:.2f} seconds.")
@@ -1965,7 +1968,7 @@ def final_synthesis_agent(state: DirectionState) -> DirectionState:
                     "content": user_prompt
                 }
             ],
-            model="llama-3.3-70b",
+            model="llama3.1-8b",
             stream=True,
             max_completion_tokens=65000,
             temperature=1,
@@ -2436,6 +2439,7 @@ async def run_webhook(request: Request):
     """
     AWS Lambda entrypoint
     """
+    raw = None
     try:
 
         start = time.time()

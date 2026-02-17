@@ -1,0 +1,5 @@
+{
+  "status": "error",
+  "error_type": "network_error",
+  "message": "[Errno 11001] getaddrinfo failed"
+}

@@ -1,0 +1,5 @@
+{
+  "status": "error",
+  "error_type": "network_error",
+  "message": "[WinError 10054] Une connexion existante a d\u00fb \u00eatre ferm\u00e9e par l\u2019h\u00f4te distant"
+}
