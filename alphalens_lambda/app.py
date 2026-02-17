@@ -1771,7 +1771,24 @@ def final_synthesis_agent(state: DirectionState) -> DirectionState:
     market = None
     resp: Optional[Any] = None
     error_reason: Optional[str] = None
-    res: Optional[str] = None 
+    res: Optional[str] = None
+
+    def _fallback_final_answer(message: str, error: Optional[str] = None) -> str:
+        meta = {}
+        if error:
+            meta["warning"] = error
+        return json.dumps(
+            {
+                "content": message,
+                "request": {},
+                "market_data": {},
+                "meta": meta,
+                "base_report": "",
+                "fundamentals": {},
+                "citations_news": [],
+            },
+            ensure_ascii=False,
+        )
 
     client = Cerebras(
         # This is the default and can be omitted
@@ -1982,6 +1999,7 @@ def final_synthesis_agent(state: DirectionState) -> DirectionState:
 
     except Exception as e:
         error_reason = f"LLM invocation failed: {str(e)}"
+        print(f"[final_synthesis_agent] Cerebras call failed: {error_reason}")
 
     end = time.time()
     # print("remember user s question was :", (state["body"].get("question") or "").strip())
@@ -2001,7 +2019,10 @@ def final_synthesis_agent(state: DirectionState) -> DirectionState:
         )
         return {
             "output": {
-                "final_answer": "Unavailable",
+                "final_answer": _fallback_final_answer(
+                    "No report generated due to upstream LLM error.",
+                    error_reason,
+                ),
                 "confidence_note": "LLM call failed",
                 "error": error_reason,
             }
@@ -2024,7 +2045,10 @@ def final_synthesis_agent(state: DirectionState) -> DirectionState:
             "error")
         return {
             "output": {
-                "final_answer": "Unavailable",
+                "final_answer": _fallback_final_answer(
+                    "No report generated due to empty LLM response.",
+                    "Empty LLM response",
+                ),
                 "confidence_note": "Empty LLM response",
             }
         }
