@@ -514,7 +514,7 @@ ARTICLES:
                     "content": user_prompt
                 }
             ],
-            model="llama3.1-8b",
+            model="gpt-oss-120b",
             stream=True,
             max_completion_tokens=65000,
             temperature=0.1,
@@ -2114,10 +2114,10 @@ def final_synthesis_agent(state: DirectionState) -> DirectionState:
                     "content": user_prompt
                 }
             ],
-            model="llama3.1-8b",
+            model="gpt-oss-120b",
             stream=True,
             max_completion_tokens=65000,
-            temperature=1,
+            temperature=0.1,
             top_p=0.95
         )
 
