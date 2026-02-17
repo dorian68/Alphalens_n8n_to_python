@@ -336,7 +336,12 @@ def supabase_update_job_status(state: dict, response_payload: dict, status: Opti
         # print(f"[supabase_update_job_status]supabase inserting for job #{job_id}")
 
         if not job_id:
-            raise ValueError("job_id missing in state.body")
+            state["supabase"] = {
+                "updated": False,
+                "job_id": None,
+                "reason": "job_id missing in state.body",
+            }
+            return state
 
         response = (
             supabase
@@ -1592,6 +1597,130 @@ async def twelve_data_time_series(
         print(f"Twelve Data API call completed in {end - start:.2f} seconds.")
         return r.json()
 
+def clean_json(text: str) -> str:
+    """
+    Robustly extract and clean the first valid JSON from text.
+    Handles prefixes, suffixes, markdown fences, and noise.
+    """
+    import re
+    # Remove markdown fences if present
+    text = re.sub(r"```json", "", text)
+    text = re.sub(r"```\s*([\s\S]*?)\s*```", r"\1", text, flags=re.DOTALL)
+    # Find the start of the first JSON object/array
+    match = re.search(r"[\{\[]", text)
+    if not match:
+        raise ValueError("No JSON-like structure found in text")
+    start = match.start()
+    # Parse to find the balanced end
+    try:
+        import json
+        json.loads(text[start:])  # This will raise if invalid, but we use it to find end
+        return text[start:]
+    except json.JSONDecodeError as e:
+        # If partial, trim to the last valid point (basic heuristic)
+        end = start + e.pos
+        return text[start:end].strip()
+
+def _stringify_section_value(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value.strip()
+    if isinstance(value, (int, float, bool)):
+        return str(value)
+    if isinstance(value, list):
+        parts = []
+        for item in value:
+            item_text = _stringify_section_value(item)
+            if item_text:
+                parts.append(item_text)
+        return "\n".join(parts).strip()
+    if isinstance(value, dict):
+        lines = []
+        for k, v in value.items():
+            v_text = _stringify_section_value(v)
+            if not v_text:
+                continue
+            lines.append(f"{k}: {v_text}")
+        return "\n".join(lines).strip()
+    return str(value).strip()
+
+def _render_content_from_sections(sections: Dict[str, Any]) -> str:
+    if not isinstance(sections, dict):
+        return _stringify_section_value(sections)
+
+    preferred_order = [
+        "Base Report",
+        "Executive Summary",
+        "Fundamental Analysis",
+        "Directional Bias (Conditional)",
+        "Confidence (Conditional)",
+        "Key Levels (Conditional)",
+        "AI Insights Breakdown",
+        "Risks & Monitoring",
+    ]
+    used = set()
+    blocks = []
+
+    for key in preferred_order:
+        if key not in sections:
+            continue
+        text = _stringify_section_value(sections.get(key))
+        if not text:
+            continue
+        blocks.append(f"{key}\n{text}")
+        used.add(key)
+
+    for key, value in sections.items():
+        if key in used:
+            continue
+        text = _stringify_section_value(value)
+        if not text:
+            continue
+        blocks.append(f"{key}\n{text}")
+
+    return "\n\n".join(blocks).strip()
+
+def normalize_strategist_output(raw: Any) -> Dict[str, Any]:
+    """
+    Coerce LLM output into the StrategistOutput schema without losing signal.
+    """
+    data: Dict[str, Any]
+    if isinstance(raw, dict):
+        data = dict(raw)
+    elif isinstance(raw, str):
+        data = {"content": raw}
+    else:
+        data = {"content": str(raw)}
+
+    # Move top-level warning into meta when present
+    meta = data.get("meta") or {}
+    if "warning" in data and "warning" not in meta:
+        meta["warning"] = data.pop("warning")
+    data["meta"] = meta
+
+    # Defaults for required fields
+    data.setdefault("request", {})
+    data.setdefault("market_data", {})
+    data.setdefault("base_report", "")
+    data.setdefault("fundamentals", {})
+    data.setdefault("citations_news", [])
+
+    content = data.get("content")
+    if isinstance(content, dict):
+        # Promote citations/news if embedded in content
+        if not data.get("citations_news") and isinstance(content.get("Citations News"), list):
+            data["citations_news"] = content.get("Citations News")
+        if not data.get("base_report") and content.get("Base Report"):
+            data["base_report"] = _stringify_section_value(content.get("Base Report"))
+        data["content"] = _render_content_from_sections(content)
+    elif content is None:
+        data["content"] = ""
+    elif not isinstance(content, str):
+        data["content"] = str(content)
+
+    return data
+
 def generate_trade_agent(state: DirectionState) -> DirectionState:
     start = time.time()
 
@@ -2056,6 +2185,27 @@ def final_synthesis_agent(state: DirectionState) -> DirectionState:
     # -----------------------------
     # ✅ CASE 4 — Normal path
     # -----------------------------
+    # Robust parsing and validation
+    if not res:
+        content = _fallback_final_answer("No report generated due to empty LLM response.", "Empty LLM response")
+    else:
+        try:
+            # print("✅ Final agent output content received, attempting to parse JSON")
+            # print("******************************************************")
+            # print("Raw LLM output:", res)
+            # print("******************************************************")
+            clean = clean_json(res)  # Use the new cleaner
+            try:
+                raw_obj = json.loads(clean)
+            except Exception:
+                # If the LLM output is not valid JSON, fall back to treating it as content text
+                raw_obj = {"content": res}
+            normalized = normalize_strategist_output(raw_obj)
+            parsed_obj = StrategistOutput.model_validate(normalized)
+            content = json.dumps(parsed_obj.model_dump(), ensure_ascii=False, indent=None)  # Serialize cleanly
+        except Exception as e:
+            print(f"⚠️ JSON parsing failed: {str(e)}. Falling back.")
+            content = _fallback_final_answer("Report generation failed due to invalid format.", str(e))
     st = supabase_update_job_status(state,content.strip())
     return {
         "output": {
