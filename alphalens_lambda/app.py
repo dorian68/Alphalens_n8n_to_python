@@ -262,34 +262,74 @@ class DataFresheners(BaseModel):
         description="Original publisher sources used for context."
     )
 
+class DecisionTradeCard(BaseModel):
+    direction: Literal["long", "short"] = Field(description="Trade direction.")
+    timeframe: Literal["M5","M15","H1","H4","D1","W1"] = Field(description="Execution timeframe.")
+    horizon: Literal["scalping", "intraday", "swing", "position"] = Field(description="Trade horizon classification.")
+    entryPrice: float = Field(description="Proposed entry price.")
+    stopLoss: float = Field(description="Stop-loss price.")
+    takeProfits: List[float] = Field(description="One or more take-profit levels.")
+    riskRewardRatio: float = Field(description="Risk/reward ratio of the primary setup.")
+    invalidation: str = Field(
+        description=(
+            "Plain-language invalidation condition, e.g. "
+            "'Invalidated if price closes below X on H4' or "
+            "'Invalidated if spreads widen materially during the event window'."
+        )
+    )
+
+class DecisionSummary(BaseModel):
+    verdict: Literal["recommended", "conditional", "no_trade"] = Field(
+        description="Final decision: recommended, conditional, or no_trade."
+    )
+
+    alignment: Literal["aligned", "mixed", "divergent"] = Field(
+        description="Macro vs quant alignment status."
+    )
+
+    confidence_label: Literal["high", "medium", "low"] = Field(
+        description="Overall confidence label."
+    )
+
+    trade_card: DecisionTradeCard = Field(
+        description=(
+            "Beginner-friendly trade recap. Must mirror the primary setup in setups[0] "
+            "(same direction/levels). If verdict='no_trade', still provide the best "
+            "candidate trade_card but clearly marked as not recommended."
+        )
+    )
+
+    narrative: str = Field(
+        description=(
+            "2–4 sentences, explicit and beginner-friendly. "
+            "Must mention direction + entry/SL/TP and why this setup makes sense "
+            "(macro anchor + quantitative validation)."
+        )
+    )
+
+    key_risks: List[str] = Field(
+        default_factory=list,
+        description="3–5 concise risk bullets."
+    )
+
+    next_step: str = Field(
+        description=(
+            "Single actionable instruction for a beginner, e.g. "
+            "'Wait for entry confirmation near X', "
+            "'Reduce size ahead of CPI', or "
+            "'Stand aside until alignment improves'."
+        )
+    )
+
 class InstitutionalTradePlan(BaseModel):
-    instrument: str = Field(
-        description="Traded instrument identifier (e.g. XAU/USD, EUR/USD)."
-    )
-
-    asOf: str = Field(
-        description="ISO-8601 timestamp of trade plan generation."
-    )
-
-    user: TradeUserContext = Field(
-        description="User-provided preferences and constraints."
-    )
-
-    market_commentary_anchor: MarketCommentaryAnchor = Field(
-        description="Macro and directional anchor derived from research and commentary."
-    )
-
-    data_fresheners: DataFresheners = Field(
-        description="Supporting macroeconomic and positioning context."
-    )
-
-    setups: List[TradeSetup] = Field(
-        description="List of proposed trade setups (usually one unless specified)."
-    )
-
-    disclaimer: str = Field(
-        description="Mandatory legal disclaimer."
-    )
+    instrument: str = Field(description="Traded instrument identifier (e.g. XAU/USD, EUR/USD).")
+    asOf: str = Field(description="ISO-8601 timestamp of trade plan generation.")
+    user: TradeUserContext = Field(description="User-provided preferences and constraints.")
+    market_commentary_anchor: MarketCommentaryAnchor = Field(description="Macro and directional anchor.")
+    data_fresheners: DataFresheners = Field(description="Supporting macro context.")
+    setups: List[TradeSetup] = Field(description="List of proposed trade setups.")
+    decision_summary: DecisionSummary = Field(description="Top-level decision layer with explicit trade recap.")
+    disclaimer: str = Field(description="Mandatory legal disclaimer.")
 
 trade_plan_parser = PydanticOutputParser(
     pydantic_object=InstitutionalTradePlan
@@ -1762,6 +1802,60 @@ You must:
 - If directional bias is given in Market Commentary, align setups to it unless fresh fundamentals argue otherwise.
 - Respect sourcing: commentary narrative is anchor; fundamentals JSON provides validation; citations_news provide context.
 - Tone: institutional, structured, confident. Add a disclaimer at the end: "Illustrative ideas, not investment advice."
+
+-------
+
+DECISION SUMMARY (MANDATORY):
+You MUST add a top-level JSON field named "decision_summary" following the schema instructions.
+
+Purpose:
+- Explain the final decision to a beginner user in a simple, institutional way.
+- Resolve potential conflicts between: (1) macro narrative/research, and (2) quant/forecast/surface outputs.
+
+You MUST compute and express:
+1) alignment:
+- "aligned" if macro directional bias and quant directional edge point the same way
+- "mixed" if one is supportive but weaker/uncertain
+- "divergent" if they conflict materially (opposite direction or quant edge is weak)
+
+2) verdict:
+- "recommended" only when alignment is "aligned" AND the setup has a clear quantitative edge
+- "conditional" when alignment is "mixed" OR when event risk/regime makes execution fragile
+- "no_trade" when alignment is "divergent" OR quantitative edge is not convincing
+
+3) confidence_label:
+- "high" only for strong alignment + stable conditions
+- "medium" for partial alignment or moderate risk
+- "low" for divergence, high uncertainty, or event-driven risk
+
+4) rationale:
+- 2 to 4 sentences maximum
+- Plain language (beginner-friendly), no jargon, no equations
+- Must reference BOTH:
+  - macro/fundamental anchor (what’s driving the thesis)
+  - quantitative validation (what the forecast/surface suggests about probability / risk)
+- If there is divergence, explicitly say: "macro view and statistical validation are not aligned" and recommend caution or no trade.
+
+5) key_risks:
+- 3–5 bullet-like short strings (as a JSON list)
+- Include event risk, volatility, liquidity/slippage, invalidation level, and regime uncertainty if relevant.
+
+Important:
+- Do NOT invent numeric probabilities if they are not explicitly available in FORECAST DATA or SURFACE DATA.
+- If the quant layer is missing/unavailable, set verdict="conditional" with confidence_label="low" and state that quant validation was unavailable.
+- Keep the tone institutional and calm.
+
+DECISION SUMMARY RULES (MANDATORY):
+Populate decision_summary with an explicit beginner-friendly recap of the PRIMARY trade.
+- decision_summary.trade_card MUST match setups[0] EXACTLY for: direction, timeframe, horizon, entryPrice, stopLoss, takeProfits, riskRewardRatio.
+- decision_summary.narrative MUST explicitly state: direction, entry, SL, TP(s), and why (macro anchor + quant validation).
+- Add invalidation in plain language in decision_summary.trade_card.invalidation.
+- Add 3–5 key_risks (event risk, volatility regime, liquidity/slippage, invalidation trigger).
+- Add next_step: one actionable instruction for a beginner.
+If macro and quant diverge materially, set verdict="conditional" or "no_trade" and say so clearly in narrative.
+
+
+-------
 
 You MUST strictly follow this JSON schema:
 {format_instructions}
