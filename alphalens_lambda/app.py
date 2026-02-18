@@ -9,7 +9,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage, BaseMessage, ToolMessage
 import asyncio
 
-from typing import TypedDict, List, Dict, Any, Optional
+from typing import TypedDict, List, Dict, Any, Optional, Union
 # from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage
 from langgraph.graph import StateGraph, END
@@ -44,13 +44,22 @@ test_variable = ""
 
 today_iso = datetime.now(timezone.utc).date().isoformat()
 
+class FundamentalEvent(BaseModel):
+    indicator: str
+    actual: str | float | None = None
+    consensus: str | float | None = None
+    previous: str | float | None = None
+    release_timestamp: str | None = None
+    checked_at: str | None = None
+
 class StrategistOutput(BaseModel):
     content: str
     request: Dict[str, Any]
     market_data: Dict[str, Any]
     meta: Dict[str, Any]
     base_report: str
-    fundamentals: Dict[str, Any]
+    fundamentals: List[FundamentalEvent] = Field(default_factory=list)
+    # fundamentals: Union[Dict[str, Any], List[Dict[str, Any]]] = Field(default_factory=dict)
     citations_news: List[Dict[str, Any]]
 
 class MacroCommentary(BaseModel):
@@ -1896,6 +1905,7 @@ from cerebras.cloud.sdk import Cerebras
 def final_synthesis_agent(state: DirectionState) -> DirectionState:
     start = time.time()
     print("[MACRO_COMMENTARY]final_synthesis_agent")
+    print(f"[MACRO_COMMENTARY]final_synthesis_agent | economic_calendar_agent : {json.dumps(state.get('economic_calendar'), ensure_ascii=False)}")
 
     market = None
     resp: Optional[Any] = None
@@ -2032,7 +2042,7 @@ def final_synthesis_agent(state: DirectionState) -> DirectionState:
     - Perplexity discovery: {state.get("articles")} 
     - Partner research: {json.dumps(state.get("abcg_research"), ensure_ascii=False)}
     - User query: { (state.get("question") or "").strip() }
-    - Finnhub economic calendar : || {json.dumps(state.get("economic_calendar_agent"), ensure_ascii=False)} ||
+    - Finnhub economic calendar : || {json.dumps(state.get("economic_calendar"), ensure_ascii=False)} ||
 
     ---
 
@@ -2190,19 +2200,30 @@ def final_synthesis_agent(state: DirectionState) -> DirectionState:
         content = _fallback_final_answer("No report generated due to empty LLM response.", "Empty LLM response")
     else:
         try:
-            # print("✅ Final agent output content received, attempting to parse JSON")
+            print("✅ Final agent output content received, attempting to parse JSON")
             # print("******************************************************")
             # print("Raw LLM output:", res)
             # print("******************************************************")
+
             clean = clean_json(res)  # Use the new cleaner
+
+            # print("********************* CLEAN **************************")
+            # print("Raw LLM output:", clean)
+            # print("********************* CLEAN **************************")
             try:
                 raw_obj = json.loads(clean)
             except Exception:
                 # If the LLM output is not valid JSON, fall back to treating it as content text
-                raw_obj = {"content": res}
+                # raw_obj = {"content": res}
+                raw_obj = res
+
             normalized = normalize_strategist_output(raw_obj)
             parsed_obj = StrategistOutput.model_validate(normalized)
             content = json.dumps(parsed_obj.model_dump(), ensure_ascii=False, indent=None)  # Serialize cleanly
+
+            # print("********************* CONTENT **************************")
+            # print("Raw LLM output:", content)
+            # print("********************* CONTENT **************************")
         except Exception as e:
             print(f"⚠️ JSON parsing failed: {str(e)}. Falling back.")
             content = _fallback_final_answer("Report generation failed due to invalid format.", str(e))
