@@ -1,0 +1,173 @@
+{
+  "status": "success",
+  "elapsed_sec": 0.49,
+  "data": {
+    "ok": true,
+    "status": "ok",
+    "message": "forecast completed",
+    "request_id": "d24fccc4-b8c0-4805-a6fe-8f600674969e",
+    "timestamp": "2026-02-24T03:54:07Z",
+    "request": {
+      "symbol": "BTC/USD",
+      "timeframe": "1h",
+      "horizons": [
+        24
+      ],
+      "use_montecarlo": true,
+      "paths": 1000,
+      "trade_mode": "forward",
+      "include_predictions": true,
+      "include_metadata": true,
+      "include_model_info": true,
+      "execution_price": 87382.27
+    },
+    "warnings": [],
+    "data": {
+      "payload": {
+        "symbol": "BTC/USD",
+        "asOf": "2025-11-25T10:00:00+00:00",
+        "timeframe": "1h",
+        "use_montecarlo": true,
+        "horizons": [
+          {
+            "h": "24h",
+            "direction": "long",
+            "trade_mode": "forward",
+            "entry_price": 88005.91049089945,
+            "entry_type": "conditional_forecast",
+            "entry_method": "median",
+            "forecast": {
+              "medianPrice": 88005.91049089945,
+              "p20": 86719.26359887043,
+              "p80": 89342.62158884024
+            },
+            "tp": 89342.62158884024,
+            "sl": 86719.26359887043,
+            "riskReward": 1.0389,
+            "prob_hit_tp_before_sl": 0.235,
+            "confidence": 0.6441,
+            "position_size": 1.0,
+            "model": {
+              "mean": "NHITS",
+              "vol": "EGARCH_t",
+              "calibrated": true
+            }
+          }
+        ],
+        "entry_price": 88005.91049089945
+      },
+      "as_of": "2025-11-25T10:00:00+00:00",
+      "data_hash": "7abc00291abf3527c96111f67880f9e5ea59a9ed4ec8ebb76fabbf4d10050842",
+      "durations": {
+        "fetch_seconds": 0.0009436000254936516,
+        "mean_model_fit_seconds": 0.0,
+        "garch_fit_seconds": 0.0,
+        "garch_forecast_seconds": 0.19383219996234402,
+        "monte_carlo_seconds": 0.004756900074426085,
+        "forecast_loop_seconds": 0.09133059997111559,
+        "total_seconds": 0.48704099998576567
+      }
+    },
+    "metadata": {
+      "symbol": "BTC/USD",
+      "timeframe": "1h",
+      "horizons": [
+        24
+      ],
+      "timestamp": "2026-02-24T03:54:06Z",
+      "timestamp_slug": "20260224T035406Z",
+      "as_of": "2025-11-25T10:00:00+00:00",
+      "n_observations": 883,
+      "data_hash": "7abc00291abf3527c96111f67880f9e5ea59a9ed4ec8ebb76fabbf4d10050842",
+      "use_montecarlo": true,
+      "monte_carlo_paths": 200,
+      "durations": {
+        "fetch_seconds": 0.0009436000254936516,
+        "mean_model_fit_seconds": 0.0,
+        "garch_fit_seconds": 0.0,
+        "garch_forecast_seconds": 0.19383219996234402,
+        "monte_carlo_seconds": 0.004756900074426085,
+        "forecast_loop_seconds": 0.09133059997111559,
+        "total_seconds": 0.48704099998576567
+      },
+      "mean_model": {
+        "name": "NHITS",
+        "class": "NHiTSForecaster",
+        "backend_class": "NHiTSModel",
+        "hyperparameters": {
+          "output_chunk_shift": 0,
+          "num_stacks": 3,
+          "num_blocks": 1,
+          "num_layers": 2,
+          "layer_widths": 512,
+          "pooling_kernel_sizes": null,
+          "n_freq_downsample": null,
+          "dropout": 0.1,
+          "activation": "ReLU",
+          "MaxPool1d": true,
+          "input_chunk_length": 48,
+          "output_chunk_length": 24,
+          "n_epochs": 100,
+          "batch_size": 20000,
+          "random_state": 42,
+          "loss_fn": {
+            "training": false,
+            "reduction": "mean",
+            "beta": 1.0
+          },
+          "optimizer_kwargs": {
+            "lr": 0.001
+          },
+          "pl_trainer_kwargs": {
+            "accelerator": "gpu",
+            "devices": 1
+          }
+        }
+      },
+      "vol_model": {
+        "class": "EGARCHVolModel",
+        "distribution": "Student-t",
+        "degrees_of_freedom": 6.0,
+        "skew": -0.8,
+        "forecast_method": "simulation",
+        "sigma_last": 0.005
+      },
+      "environment": {
+        "python": "3.12.10",
+        "numpy": "1.26.4",
+        "pandas": "2.3.3",
+        "platform": "Windows-11-10.0.26200-SP0"
+      },
+      "regime": {
+        "enabled": true,
+        "label": "TREND_UP",
+        "confidence": 6.2009985101555605e-25,
+        "lookback": 200,
+        "route": "trend"
+      },
+      "residual_std": 0.005365340704270637,
+      "last_price": 87382.27,
+      "execution_price": 87382.27,
+      "price_modeling": 87382.27,
+      "price_execution": 87382.27,
+      "execution_price_source": "client",
+      "sigma_path_min": 0.005,
+      "sigma_path_max": 0.005,
+      "backtest_time_travel": true,
+      "backtest_time_travel_model": "nhits"
+    },
+    "model_status": {
+      "model_type": "nhits",
+      "device": "cuda",
+      "mean": {
+        "loaded": true,
+        "reason": "time_travel_cache"
+      },
+      "vol": {
+        "loaded": false,
+        "reason": "time_travel_cache"
+      }
+    },
+    "total_seconds": 0.49
+  }
+}

@@ -1,0 +1,152 @@
+{
+  "run_id": "c3d0f5f0-b60f-432f-b6ef-b6b2945f77eb",
+  "timestamp": "2026-02-26T18:15:13.138662+00:00",
+  "git_commit": "4987b18a1f7575184479a7f95992c63c8d44fcdd",
+  "params": {
+    "symbol": "BTC/USD",
+    "timeframe": "1h",
+    "lookback": 120,
+    "date_from": "2025-01-01",
+    "date_to": "2026-01-10",
+    "price_csv": "",
+    "gen_mode": "forecast",
+    "forecast_mode": "live",
+    "forecast_backend": "local_engine",
+    "forecast_asof": "bar",
+    "forecast_asof_field": "as_of",
+    "trade_mode": "forward",
+    "forecast_batch_size": 1,
+    "macro_mode": "off",
+    "risk_appetite": "moderate",
+    "llm_model": "gpt-4.1-mini",
+    "llm_temperature": 0.0,
+    "horizons": "auto",
+    "max_hold_bars": 0,
+    "entry_expiry_bars": 2,
+    "decision_every": 1,
+    "warmup_bars": 50,
+    "feature_window": 50,
+    "position_mode": "one_at_time",
+    "fill_policy": "tp_first",
+    "batch_size": "1000",
+    "batch_step": "",
+    "batch_rolling": false,
+    "batch_overlap": 0,
+    "batch_parallel": true,
+    "batch_workers": 0,
+    "sizing_mode": "fixed_fractional",
+    "risk_per_trade_pct": 0.8,
+    "initial_capital": 10000.0,
+    "min_position_size": 0.0,
+    "max_position_size": 0.0,
+    "max_leverage": 4.0,
+    "target_vol": 0.0,
+    "vol_lookback": 20,
+    "exclude_timeouts": true,
+    "trades_json_nested": false,
+    "skip_range_regime": false,
+    "log_progress_date": true,
+    "backtest_start": "2025-06-16T11:00:00+00:00",
+    "backtest_end": "2026-01-10T23:00:00+00:00",
+    "batch": {
+      "type": "global"
+    }
+  },
+  "summary": {
+    "trades": 210,
+    "net_pnl": 10483.096105377754,
+    "win_rate": 0.3238,
+    "avg_r": 0.7194,
+    "max_drawdown": 1131.7937,
+    "routing_report": {
+      "total_trades": 210,
+      "by_regime": {
+        "RANGE": {
+          "total": 79,
+          "route": "alternate",
+          "models": {
+            "MEAN_REVERSION": 79
+          }
+        },
+        "BREAKOUT_VOL_EXPANSION": {
+          "total": 36,
+          "route": "alternate",
+          "models": {
+            "MOMENTUM": 35,
+            "ETS": 1
+          }
+        },
+        "TREND_DOWN": {
+          "total": 46,
+          "route": "trend",
+          "models": {
+            "NHITS": 46
+          }
+        },
+        "TREND_UP": {
+          "total": 49,
+          "route": "trend",
+          "models": {
+            "NHITS": 49
+          }
+        }
+      },
+      "mismatches": {
+        "trend_route_baseline_model": 0,
+        "alternate_route_trend_model": 0,
+        "unknown_model": 0,
+        "unknown_regime": 0
+      },
+      "examples": {
+        "trend_route_baseline_model": [],
+        "alternate_route_trend_model": []
+      }
+    }
+  },
+  "metrics": {
+    "n_trades": 210,
+    "win_rate": 0.32381,
+    "gross_pnl": 10483.096105,
+    "gross_profit": 20285.151786,
+    "gross_loss": 9802.055681,
+    "net_pnl": 10483.096105,
+    "avg_trade_pnl": 49.919505,
+    "median_trade_pnl": -56.0,
+    "profit_factor": 2.069479,
+    "expectancy_per_trade": 49.919505,
+    "avg_win": 298.311056,
+    "avg_loss": -69.028561,
+    "avg_win_loss_ratio": 4.32156,
+    "max_drawdown": 1131.793726,
+    "max_drawdown_pct": 0.054891,
+    "sharpe": 0.219815,
+    "sortino": 2.548641,
+    "returns_volatility": 0.016134,
+    "skew": 2.103664,
+    "kurtosis": 4.04982,
+    "avg_holding_time": 25937.14,
+    "median_holding_time": 18000.0,
+    "exposure_time_pct": 0.302358,
+    "avg_r": 0.719364,
+    "median_r": -1.0,
+    "r_win_rate": 0.261905,
+    "max_r": 192.703917,
+    "min_r": -43.944185,
+    "pct_r_gt_2": 0.152381,
+    "pct_r_gt_1": 0.261905,
+    "pct_r_lt_-1": 0.042857,
+    "pct_r_lt_-2": 0.042857,
+    "max_consecutive_wins": 7,
+    "max_consecutive_losses": 12,
+    "trade_pnl_std": 225.939805,
+    "largest_win": 1001.009517,
+    "largest_loss": -80.0,
+    "avg_position_size": 0.13936,
+    "median_position_size": 0.090684,
+    "max_position_size": 0.457037,
+    "avg_leverage": 1.4581,
+    "risk_per_trade_pct": 0.8,
+    "n_trades_total": 242,
+    "n_timeouts": 32
+  }
+}

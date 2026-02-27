@@ -1,0 +1,143 @@
+{
+  "status": "success",
+  "elapsed_sec": 0.29,
+  "data": {
+    "ok": true,
+    "status": "ok",
+    "message": "forecast completed",
+    "request_id": "84b7fc17-3d3b-431d-be2f-e3f16e5317f5",
+    "timestamp": "2026-02-24T04:39:06Z",
+    "request": {
+      "symbol": "BTC/USD",
+      "timeframe": "1h",
+      "horizons": [
+        24
+      ],
+      "use_montecarlo": true,
+      "paths": 1000,
+      "trade_mode": "forward",
+      "include_predictions": true,
+      "include_metadata": true,
+      "include_model_info": true,
+      "execution_price": 121418.09
+    },
+    "warnings": [],
+    "data": {
+      "payload": {
+        "symbol": "BTC/USD",
+        "asOf": "2025-07-14T04:00:00+00:00",
+        "timeframe": "1h",
+        "use_montecarlo": true,
+        "horizons": [
+          {
+            "h": "24h",
+            "direction": "long",
+            "trade_mode": "forward",
+            "entry_price": 124109.94020442062,
+            "entry_type": "conditional_forecast",
+            "entry_method": "median",
+            "forecast": {
+              "medianPrice": 124109.94020442062,
+              "p20": 122144.3608819696,
+              "p80": 126159.32842984595
+            },
+            "tp": 126159.32842984595,
+            "sl": 122144.3608819696,
+            "riskReward": 1.0426,
+            "prob_hit_tp_before_sl": 0.51,
+            "confidence": 0.6441,
+            "position_size": 1.0,
+            "model": {
+              "mean": "regime_momentum",
+              "vol": "EGARCH_t",
+              "calibrated": true
+            }
+          }
+        ],
+        "entry_price": 124109.94020442062
+      },
+      "as_of": "2025-07-14T04:00:00+00:00",
+      "data_hash": "6ea91d1e2e702e39751d3a889744719a5022d7dfb8280eab8f75807993a1e0f1",
+      "durations": {
+        "fetch_seconds": 0.0008249999955296516,
+        "mean_model_fit_seconds": 0.000272100034635514,
+        "garch_fit_seconds": 0.0,
+        "garch_forecast_seconds": 0.12643910001497716,
+        "monte_carlo_seconds": 0.0028009999659843743,
+        "forecast_loop_seconds": 0.005501499981619418,
+        "total_seconds": 0.28367710002930835
+      }
+    },
+    "metadata": {
+      "symbol": "BTC/USD",
+      "timeframe": "1h",
+      "horizons": [
+        24
+      ],
+      "timestamp": "2026-02-24T04:39:06Z",
+      "timestamp_slug": "20260224T043906Z",
+      "as_of": "2025-07-14T04:00:00+00:00",
+      "n_observations": 666,
+      "data_hash": "6ea91d1e2e702e39751d3a889744719a5022d7dfb8280eab8f75807993a1e0f1",
+      "use_montecarlo": true,
+      "monte_carlo_paths": 200,
+      "durations": {
+        "fetch_seconds": 0.0008249999955296516,
+        "mean_model_fit_seconds": 0.000272100034635514,
+        "garch_fit_seconds": 0.0,
+        "garch_forecast_seconds": 0.12643910001497716,
+        "monte_carlo_seconds": 0.0028009999659843743,
+        "forecast_loop_seconds": 0.005501499981619418,
+        "total_seconds": 0.28367710002930835
+      },
+      "mean_model": {
+        "name": "regime_momentum",
+        "class": "MomentumForecaster"
+      },
+      "vol_model": {
+        "class": "EGARCHVolModel",
+        "distribution": "Student-t",
+        "degrees_of_freedom": 6.0,
+        "skew": -0.8,
+        "forecast_method": "simulation",
+        "sigma_last": 0.005
+      },
+      "environment": {
+        "python": "3.12.10",
+        "numpy": "1.26.4",
+        "pandas": "2.3.3",
+        "platform": "Windows-11-10.0.26200-SP0"
+      },
+      "regime": {
+        "enabled": true,
+        "label": "BREAKOUT_VOL_EXPANSION",
+        "confidence": 0.005147301177860769,
+        "lookback": 200,
+        "route": "alternate"
+      },
+      "residual_std": 0.003498660218013735,
+      "last_price": 121418.09,
+      "execution_price": 121418.09,
+      "price_modeling": 121418.09,
+      "price_execution": 121418.09,
+      "execution_price_source": "client",
+      "sigma_path_min": 0.005,
+      "sigma_path_max": 0.005,
+      "backtest_time_travel": true,
+      "backtest_time_travel_model": "nhits"
+    },
+    "model_status": {
+      "model_type": "nhits",
+      "device": "cuda",
+      "mean": {
+        "loaded": true,
+        "reason": "time_travel_cache"
+      },
+      "vol": {
+        "loaded": false,
+        "reason": "time_travel_cache"
+      }
+    },
+    "total_seconds": 0.286
+  }
+}

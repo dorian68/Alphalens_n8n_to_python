@@ -27,11 +27,16 @@ from typing import List, Optional, Literal
 from langchain_core.tools import tool
 from langgraph.prebuilt import ToolNode
 from fastapi.responses import JSONResponse
+from typing import Optional, Literal, Dict, Any
+import time
+import httpx
+from langchain_core.tools import tool
 
 
 load_dotenv()
 app = FastAPI(title="Direction AI Backend")
 
+USE_ABCG = os.getenv("USE_ABCG", "false").lower() == "true"
 OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
 TWELVE_DATA_API_KEY = os.environ["TWELVE_DATA_API_KEY"]
 SUPABASE_URL = os.environ["SUPABASE_URL"]
@@ -768,12 +773,6 @@ Correct for timeframe = "4h":
             "payload_sent": payload,
         }
 
-from typing import Optional, Literal, Dict, Any
-import time
-import httpx
-from langchain_core.tools import tool
-
-
 @tool
 async def surface_probability_aws_api(
     symbol: str,
@@ -922,6 +921,12 @@ async def abcg_research_agent(state: DirectionState) -> DirectionState:
         }
 
 def market_commentary_agent(state: DirectionState) -> DirectionState:
+    if USE_ABCG:
+        partner = state.get("abcg_research")
+        partner_txt = "" if not partner or (isinstance(partner, dict) and partner.get("status") == "disabled") else json.dumps(partner, ensure_ascii=False)
+    else:
+        partner_txt = ""
+
     llm = ChatOpenAI(model="gpt-4.1-mini", temperature=0)
 
     system = """You are an institutional trade-setup generator.
@@ -934,7 +939,7 @@ MACRO:
 {state['macro_insight']}
 
 PARTNER:
-{state.get('abcg_research')}
+{partner_txt}
 """
 
     resp = llm.invoke([
@@ -1772,6 +1777,11 @@ def normalize_strategist_output(raw: Any) -> Dict[str, Any]:
 
 def generate_trade_agent(state: DirectionState) -> DirectionState:
     start = time.time()
+    if USE_ABCG:
+        partner = state.get("abcg_research")
+        partner_txt = "" if not partner or (isinstance(partner, dict) and partner.get("status") == "disabled") else json.dumps(partner, ensure_ascii=False)
+    else:
+        partner_txt = ""
 
     llm = ChatOpenAI(
         model="gpt-4.1-mini",
@@ -1792,7 +1802,7 @@ MARKET DATA FROM TWELVE DATA :
 {json.dumps(state.get("market_data"), indent=2)}
 
 and our Partner ABCG Research insights:
-{json.dumps(state.get("abcg_research"), ensure_ascii=False)}
+{partner_txt}
 
 You must:
 - Always provide: entryPrice, stopLoss, takeProfits[], riskRewardRatio.
@@ -1993,11 +2003,14 @@ Use this information to produce structured trade setups as per your system promp
         }
     }
 
-import os
-from cerebras.cloud.sdk import Cerebras
-
 def final_synthesis_agent(state: DirectionState) -> DirectionState:
     start = time.time()
+    if USE_ABCG:
+        partner = state.get("abcg_research")
+        partner_txt = "" if not partner or (isinstance(partner, dict) and partner.get("status") == "disabled") else json.dumps(partner, ensure_ascii=False)
+    else:
+        partner_txt = ""
+    
     print("[MACRO_COMMENTARY]final_synthesis_agent")
     print(f"[MACRO_COMMENTARY]final_synthesis_agent | economic_calendar_agent : {json.dumps(state.get('economic_calendar'), ensure_ascii=False)}")
 
@@ -2134,7 +2147,7 @@ def final_synthesis_agent(state: DirectionState) -> DirectionState:
     ## INPUTS
 
     - Perplexity discovery: {state.get("articles")} 
-    - Partner research: {json.dumps(state.get("abcg_research"), ensure_ascii=False)}
+    - Partner research: {partner_txt}
     - User query: { (state.get("question") or "").strip() }
     - Finnhub economic calendar : || {json.dumps(state.get("economic_calendar"), ensure_ascii=False)} ||
 
@@ -2580,7 +2593,8 @@ def build_run_graph():
     graph.add_node("start", start_node)
     graph.add_node("fanout", lambda s: s)
     graph.add_node("data_collection_llm", data_collection_llm_agent)
-    graph.add_node("abcg_research", abcg_research_agent)
+    if USE_ABCG:
+        graph.add_node("abcg_research", abcg_research_agent)
     graph.add_node("economic_calendar", economic_calendar_agent)
     graph.add_node("planner", planner_agent)
     graph.add_node("tools", ToolNode([twelve_data_time_series]))
@@ -2592,11 +2606,13 @@ def build_run_graph():
  
     graph.add_edge("start", "fanout")
     graph.add_edge("fanout", "data_collection_llm")
-    graph.add_edge("fanout", "abcg_research")
+    if USE_ABCG:
+        graph.add_edge("fanout", "abcg_research")
     graph.add_edge("fanout", "economic_calendar")
 
     graph.add_edge("data_collection_llm", "planner")
-    graph.add_edge("abcg_research", "planner")
+    if USE_ABCG:
+        graph.add_edge("abcg_research", "planner")
     graph.add_edge("economic_calendar", "planner")
     graph.add_edge("planner", "tools")
     graph.add_edge("tools","extract_tool_outputs")
@@ -2610,7 +2626,8 @@ def build_trade_graph():
     graph.add_node("start", start_trade_queued_node)
     graph.add_node("fanout", lambda s: s)
     graph.add_node("data_collection_llm", data_collection_llm_agent)
-    graph.add_node("abcg_research", abcg_research_agent)
+    if USE_ABCG:
+        graph.add_node("abcg_research", abcg_research_agent)
     graph.add_node("economic_calendar", economic_calendar_agent)
     graph.add_node("planner", planner_trade_agent)
     graph.add_node("tools", ToolNode([forecast_aws_api,twelve_data_time_series,surface_probability_aws_api]))
@@ -2623,11 +2640,13 @@ def build_trade_graph():
 
     graph.add_edge("start", "fanout")
     graph.add_edge("fanout", "data_collection_llm")
-    graph.add_edge("fanout", "abcg_research")
+    if USE_ABCG:
+        graph.add_edge("fanout", "abcg_research")
     graph.add_edge("fanout", "economic_calendar")
 
     graph.add_edge("data_collection_llm", "planner")
-    graph.add_edge("abcg_research", "planner")
+    if USE_ABCG:
+        graph.add_edge("abcg_research", "planner")
     graph.add_edge("economic_calendar", "planner")
     graph.add_edge("planner", "tools")
     graph.add_edge("tools", "extract_tool_outputs")
@@ -2643,7 +2662,8 @@ def build_trade2_graph():
     graph.add_node("fanout2", lambda s: s)
 
     graph.add_node("data_collection_llm", data_collection_llm_agent)
-    graph.add_node("abcg_research", abcg_research_agent)
+    if USE_ABCG:
+        graph.add_node("abcg_research", abcg_research_agent)
     graph.add_node("economic_calendar", economic_calendar_agent)
     graph.add_node("planner", planner_trade_agent)
     graph.add_node("planner_market", planner_market_data)
@@ -2661,11 +2681,12 @@ def build_trade2_graph():
 
     graph.add_edge("start", "fanout")
     graph.add_edge("fanout", "data_collection_llm")
-    graph.add_edge("fanout", "abcg_research")
+    if USE_ABCG:
+        graph.add_edge("fanout", "abcg_research")
     graph.add_edge("fanout", "economic_calendar")
-
     graph.add_edge("data_collection_llm", "fanout2")
-    graph.add_edge("abcg_research", "fanout2")
+    if USE_ABCG:
+        graph.add_edge("abcg_research", "fanout2")
     graph.add_edge("economic_calendar", "fanout2")
     graph.add_edge("fanout2", "planner_market")
     
@@ -2745,8 +2766,7 @@ async def run_webhook(request: Request):
             "tradeMessages": [],
             "articles": [],
             "macro_insight": "",
-            "abcg_research": None,
-            "trade_setup": None,
+            "abcg_research": None if USE_ABCG else {"status": "disabled", "reason": "USE_ABCG_RESEARCH=false"},            "trade_setup": None,
             "economic_calendar": None,
             "market_data": None,
             "output": {},

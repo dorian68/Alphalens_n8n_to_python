@@ -1,0 +1,200 @@
+{
+  "guideline_evaluations_3.2.2": [
+    {
+      "id": "81ad1db934afae911774c1e78408e6ff",
+      "creation_utc": "2026-02-26T13:48:00.853998+00:00",
+      "version": "3.2.2",
+      "properties": {
+        "continuous": false,
+        "customer_dependent_action_data": {
+          "is_customer_dependent": false,
+          "customer_action": "",
+          "agent_action": ""
+        },
+        "agent_intention_condition": "You are likely to reference market data or collective insights",
+        "internal_action": null
+      }
+    },
+    {
+      "id": "007858255ceceea4adfda429f69570ef",
+      "creation_utc": "2026-02-26T13:48:00.854642+00:00",
+      "version": "3.2.2",
+      "properties": {
+        "continuous": false,
+        "customer_dependent_action_data": {
+          "is_customer_dependent": false,
+          "customer_action": "",
+          "agent_action": ""
+        },
+        "agent_intention_condition": null,
+        "internal_action": null
+      }
+    },
+    {
+      "id": "cfcba2a28cd25d3e092264cffcad7d0a",
+      "creation_utc": "2026-02-26T13:48:01.366703+00:00",
+      "version": "3.2.2",
+      "properties": {
+        "continuous": true,
+        "customer_dependent_action_data": {
+          "is_customer_dependent": false,
+          "customer_action": "",
+          "agent_action": ""
+        },
+        "agent_intention_condition": null,
+        "internal_action": null
+      }
+    },
+    {
+      "id": "61cc5224e56b8ff7603197f819c01475",
+      "creation_utc": "2026-02-26T13:48:01.367252+00:00",
+      "version": "3.2.2",
+      "properties": {
+        "continuous": false,
+        "customer_dependent_action_data": {
+          "is_customer_dependent": true,
+          "customer_action": "The customer provides the required instruments and report type",
+          "agent_action": "The agent collects the required instruments and report type and then launches report generation"
+        },
+        "agent_intention_condition": null,
+        "internal_action": null
+      }
+    },
+    {
+      "id": "0191d9700bc9009e1efab449c3d47f46",
+      "creation_utc": "2026-02-26T13:48:01.367474+00:00",
+      "version": "3.2.2",
+      "properties": {
+        "continuous": false,
+        "customer_dependent_action_data": {
+          "is_customer_dependent": false,
+          "customer_action": "",
+          "agent_action": ""
+        },
+        "agent_intention_condition": null,
+        "internal_action": null
+      }
+    },
+    {
+      "id": "6ff604a5471b9fd40fc02054fde898fd",
+      "creation_utc": "2026-02-26T13:48:01.367670+00:00",
+      "version": "3.2.2",
+      "properties": {
+        "continuous": false,
+        "customer_dependent_action_data": {
+          "is_customer_dependent": false,
+          "customer_action": "",
+          "agent_action": ""
+        },
+        "agent_intention_condition": null,
+        "internal_action": null
+      }
+    },
+    {
+      "id": "f03dabbaf155926ca1bab946d0409f4f",
+      "creation_utc": "2026-02-26T13:48:01.881667+00:00",
+      "version": "3.2.2",
+      "properties": {
+        "continuous": true,
+        "customer_dependent_action_data": {
+          "is_customer_dependent": false,
+          "customer_action": "",
+          "agent_action": ""
+        },
+        "agent_intention_condition": "You are likely to answer a financial or trading question",
+        "internal_action": null
+      }
+    },
+    {
+      "id": "0a518ba2a744b314faa397ecde6a270d",
+      "creation_utc": "2026-02-26T13:48:01.882174+00:00",
+      "version": "3.2.2",
+      "properties": {
+        "continuous": false,
+        "customer_dependent_action_data": {
+          "is_customer_dependent": false,
+          "customer_action": "",
+          "agent_action": ""
+        },
+        "agent_intention_condition": null,
+        "internal_action": null
+      }
+    },
+    {
+      "id": "1053a72bb21d2e83c74bb2874e5f1295",
+      "creation_utc": "2026-02-26T13:48:02.392564+00:00",
+      "version": "3.2.2",
+      "properties": {
+        "continuous": false,
+        "customer_dependent_action_data": {
+          "is_customer_dependent": false,
+          "customer_action": "",
+          "agent_action": ""
+        },
+        "agent_intention_condition": null,
+        "internal_action": null
+      }
+    },
+    {
+      "id": "c50124190565f00ff69f7bcf8fce7163",
+      "creation_utc": "2026-02-26T13:48:02.393031+00:00",
+      "version": "3.2.2",
+      "properties": {
+        "continuous": true,
+        "customer_dependent_action_data": {
+          "is_customer_dependent": false,
+          "customer_action": "",
+          "agent_action": ""
+        },
+        "agent_intention_condition": null,
+        "internal_action": null
+      }
+    },
+    {
+      "id": "3e0fa70c9475497d50e477804170d382",
+      "creation_utc": "2026-02-26T13:48:02.393316+00:00",
+      "version": "3.2.2",
+      "properties": {
+        "continuous": true,
+        "customer_dependent_action_data": {
+          "is_customer_dependent": false,
+          "customer_action": "",
+          "agent_action": ""
+        },
+        "agent_intention_condition": null,
+        "internal_action": null
+      }
+    },
+    {
+      "id": "a1cdd0db2d995d1941d1a3ffb5f43ac3",
+      "creation_utc": "2026-02-26T13:48:02.393528+00:00",
+      "version": "3.2.2",
+      "properties": {
+        "continuous": false,
+        "customer_dependent_action_data": {
+          "is_customer_dependent": true,
+          "customer_action": "The customer provides the required trade parameters",
+          "agent_action": "The agent collects the required trade parameters and then launches the trade generator"
+        },
+        "agent_intention_condition": null,
+        "internal_action": null
+      }
+    },
+    {
+      "id": "64b24f0ed30f012c0418affaf9fa1d4e",
+      "creation_utc": "2026-02-26T13:48:02.393870+00:00",
+      "version": "3.2.2",
+      "properties": {
+        "continuous": false,
+        "customer_dependent_action_data": {
+          "is_customer_dependent": true,
+          "customer_action": "The customer provides the required instrument",
+          "agent_action": "The agent collects the required instrument and then launches macro analysis"
+        },
+        "agent_intention_condition": null,
+        "internal_action": null
+      }
+    }
+  ],
+  "journey_evaluations_3.2.2": []
+}
