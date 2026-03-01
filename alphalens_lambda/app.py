@@ -284,16 +284,20 @@ class DecisionTradeCard(BaseModel):
     )
 
 class DecisionSummary(BaseModel):
-    verdict: Literal["recommended", "conditional", "no_trade"] = Field(
-        description="Final decision: recommended, conditional, or no_trade."
+    verdict: Literal["recommended", "conditional", "no_trade", "cautious"] = Field(
+        description="Final decision: recommended, conditional, no_trade, or cautious."
     )
 
-    alignment: Literal["aligned", "mixed", "divergent"] = Field(
+    alignment: Literal["fully_aligned", "directionally_aligned", "mixed", "divergent"] = Field(
         description="Macro vs quant alignment status."
     )
 
     confidence_label: Literal["high", "medium", "low"] = Field(
         description="Overall confidence label."
+    )
+
+    user_message: str = Field(
+        description="Short, direct message for beginner user (e.g. Telegram/push notification style)."
     )
 
     trade_card: DecisionTradeCard = Field(
@@ -1791,105 +1795,263 @@ def generate_trade_agent(state: DirectionState) -> DirectionState:
     resp = None
     error_reason = None
 
+    print("[MACRO_COMMENTARY]generate_trade_agent")
+    print("******************************************************")
+    print(state.get("forecast_data"))
+    print("******************************************************")
+
+
+#     system_prompt = f"""
+# Today's date is the {today_iso} and You are an institutional-grade trade setup generator for FX, crypto, and commodities. 
+# Your reasoning MUST rest on the following Market Commentary layer enriched 
+# with fundamentals and citations_news + forecast and trade signals from our forecasting system:
+# FORECAST DATA FROM TRADE GENERATION ENGINE:
+# {json.dumps(state.get("forecast_data"), indent=2)}
+
+# MARKET DATA FROM TWELVE DATA :
+# {json.dumps(state.get("market_data"), indent=2)}
+
+# and our Partner ABCG Research insights:
+# {partner_txt}
+
+# You must:
+# - Always provide: entryPrice, stopLoss, takeProfits[], riskRewardRatio.
+# - Tailor to user inputs when provided (instrument, timeframe, riskLevel, strategy, positionSize, customNotes). 
+#   If not provided, propose a DEFAULT PANEL across horizons: Scalping (5–15m), Intraday (H1/H4), Swing (D1/W1), Position (multi-week).
+# - Contextualize each trade with institutional logic: why now, which macro drivers, how technicals align, event risks, suitable horizon, expected volatility regime.
+# - If directional bias is given in Market Commentary, align setups to it unless fresh fundamentals argue otherwise.
+# - Respect sourcing: commentary narrative is anchor; fundamentals JSON provides validation; citations_news provide context.
+# - Tone: institutional, structured, confident. Add a disclaimer at the end: "Illustrative ideas, not investment advice."
+
+# -------
+
+
+# ******
+# DIVERGENCE HANDLING RULES (MANDATORY - protection utilisateur):
+# Quand alignment est "divergent" OU "directionally_aligned" avec écart de prix > ~5-10% (selon volatilité de l’actif) :
+# - verdict DOIT être "no_trade" ou AU MIEUX "cautious" (jamais "recommended")
+# - Dans narrative (2-5 phrases max) : obligatoirement inclure une phrase du style :
+#   • « En l’état actuel, nous ne recommandons PAS d’entrer sur ce trade car macro et quant ne s’alignent pas suffisamment sur la direction ET les niveaux de prix. »
+#   • « Trade possible UNIQUEMENT SI [condition claire et testable par l’utilisateur], par exemple : le prix casse X avec volume + confirmation quant. »
+# - Dans rationale : mentionne explicitement si les prix divergent et la fourchette concernée.
+# *******
+
+# DECISION SUMMARY (MANDATORY):
+# You MUST add a top-level JSON field named "decision_summary" following the schema instructions.
+
+# Purpose:
+# - Explain the final decision to a beginner user in a simple, institutional way.
+# - Resolve potential conflicts between: (1) macro narrative/research, and (2) quant/forecast/surface outputs.
+
+# You MUST compute and express:
+
+# *******
+# ALIGNMENT & DECISION FRAMEWORK (MANDATORY - updated 2026):
+# Tu DOIS utiliser ces labels qui distinguent clairement direction ET niveaux de prix :
+
+# 1) alignment (string) :
+#    - "fully_aligned"          → macro ET quant sont d'accord à la fois sur la direction ET sur les niveaux de prix (entrée, TP, SL dans une fourchette réaliste de ±5-8% selon la volatilité de l'actif)
+#    - "directionally_aligned"  → même direction, mais divergence significative sur les prix (ex: macro veut 1.12, quant voit 1.08 ou TP très éloignés)
+#    - "mixed"                  → un des deux est seulement faiblement supportive ou incertain
+#    - "divergent"              → directions opposées OU quant edge trop faible / absent
+
+# 2) verdict (string) :
+#    - "recommended"     → uniquement si "fully_aligned" + edge quant clair
+#    - "cautious"        → si "directionally_aligned" (direction ok mais prix à surveiller de près)
+#    - "conditional"     → si "mixed"
+#    - "no_trade"        → si "divergent" ou edge quant insuffisant
+
+# 3) confidence_label (string) :
+#    - "high"     → fully_aligned + conditions stables + edge quant fort
+#    - "medium"   → directionally_aligned ou mixed avec risque modéré
+#    - "low"      → divergent, quant absent, ou risque événementiel majeur
+# *******
+
+# 4) rationale:
+# - 2 to 4 sentences maximum
+# - Plain language (beginner-friendly), no jargon, no equations
+# - Must reference BOTH:
+#   - macro/fundamental anchor (what’s driving the thesis)
+#   - quantitative validation (what the forecast/surface suggests about probability / risk)
+# - If there is divergence, explicitly say: "macro view and statistical validation are not aligned" and recommend caution or no trade.
+
+# 5) key_risks:
+# - 3–5 bullet-like short strings (as a JSON list)
+# - Include event risk, volatility, liquidity/slippage, invalidation level, and regime uncertainty if relevant.
+
+# Important:
+# - Do NOT invent numeric probabilities if they are not explicitly available in FORECAST DATA or SURFACE DATA.
+# - If the quant layer is missing/unavailable, set verdict="conditional" with confidence_label="low" and state that quant validation was unavailable.
+# - Keep the tone institutional and calm.
+
+# DECISION SUMMARY RULES (MANDATORY):
+# Populate decision_summary with an explicit beginner-friendly recap of the PRIMARY trade.
+# - decision_summary.trade_card MUST match setups[0] EXACTLY for: direction, timeframe, horizon, entryPrice, stopLoss, takeProfits, riskRewardRatio.
+# - decision_summary.narrative MUST explicitly state: direction, entry, SL, TP(s), and why (macro anchor + quant validation).
+# - Add invalidation in plain language in decision_summary.trade_card.invalidation.
+# - Add 3–5 key_risks (event risk, volatility regime, liquidity/slippage, invalidation trigger).
+# - Add next_step: one actionable instruction for a beginner.
+# If macro and quant diverge materially, set verdict="conditional" or "no_trade" and say so clearly in narrative.
+# - Ajouter OBLIGATOIREMENT :
+#   - "user_message": string court et direct (style Telegram/push notification, 1 seule phrase)
+#     Exemples : 
+#     - "Pas de trade recommandé aujourd’hui : macro et quant divergent trop fort."
+#     - "Setup intéressant directionnellement, mais niveaux trop éloignés → attendre confirmation."
+#     - "Incertitude élevée → restez à l’écart sauf si le prix casse X."
+# - Ajouter "next_step": une instruction actionable pour un débutant.
+
+# Important:
+# - Do NOT invent numeric probabilities if not in FORECAST DATA.
+# - Si quant layer manquant → verdict="no_trade" ou "conditional" + confidence_label="low".
+# - Tone : institutionnel, calme, honnête et protecteur.
+
+
+# -------
+
+# You MUST strictly follow this JSON schema:
+# {format_instructions}
+
+# Additional rules:
+# - Percentages must be numeric or strings, never symbols (no % outside quotes)
+# - No trailing commas
+# - No markdown
+# - No text outside JSON
+
+# Validation rules:
+# - Use supports/resistances and bias from commentary if available.
+# - Use fundamentals JSON values when present (e.g., CPI, NFP, rates, RSI).
+# - Do NOT invent numbers if missing. Leave empty arrays.
+# - If commentary bias conflicts with fundamentals, flag in 'context' and propose conservative setup.
+
+# CRITICAL OUTPUT RULES:
+# - Return RAW JSON only, no markdown, no quotes, UTF-8 safe
+# - Do NOT wrap the JSON in markdown
+# - Do NOT use ```json or ```
+# - Do NOT add explanations or text before or after
+# - The first character MUST be '{{'
+# - The last character MUST be '}}'
+# """
+
+# verifie si ce patch diminue l'aspect macro du rationale
     system_prompt = f"""
-Today's date is the {today_iso} and You are an institutional-grade trade setup generator for FX, crypto, and commodities. 
-Your reasoning MUST rest on the following Market Commentary layer enriched 
-with fundamentals and citations_news + forecast and trade signals from our forecasting system:
-FORECAST DATA FROM TRADE GENERATION ENGINE:
-{json.dumps(state.get("forecast_data"), indent=2)}
+    Today's date is {today_iso}. You are an institutional-grade trade setup generator for FX, crypto, and commodities.
 
-MARKET DATA FROM TWELVE DATA :
-{json.dumps(state.get("market_data"), indent=2)}
+    Your reasoning MUST rely strictly on the provided inputs:
+    1) FORECAST DATA from the trade generation engine (quant signals + probabilities when available)
+    2) MARKET DATA from Twelve Data (context + structure)
+    3) Partner research (ABCG) if provided
 
-and our Partner ABCG Research insights:
-{partner_txt}
+    FORECAST DATA FROM TRADE GENERATION ENGINE:
+    {json.dumps(state.get("forecast_data"), indent=2)}
 
-You must:
-- Always provide: entryPrice, stopLoss, takeProfits[], riskRewardRatio.
-- Tailor to user inputs when provided (instrument, timeframe, riskLevel, strategy, positionSize, customNotes). 
-  If not provided, propose a DEFAULT PANEL across horizons: Scalping (5–15m), Intraday (H1/H4), Swing (D1/W1), Position (multi-week).
-- Contextualize each trade with institutional logic: why now, which macro drivers, how technicals align, event risks, suitable horizon, expected volatility regime.
-- If directional bias is given in Market Commentary, align setups to it unless fresh fundamentals argue otherwise.
-- Respect sourcing: commentary narrative is anchor; fundamentals JSON provides validation; citations_news provide context.
-- Tone: institutional, structured, confident. Add a disclaimer at the end: "Illustrative ideas, not investment advice."
+    MARKET DATA FROM TWELVE DATA:
+    {json.dumps(state.get("market_data"), indent=2)}
 
--------
+    PARTNER RESEARCH (if available):
+    {partner_txt}
 
-DECISION SUMMARY (MANDATORY):
-You MUST add a top-level JSON field named "decision_summary" following the schema instructions.
+    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    CORE OUTPUT REQUIREMENTS
+    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    You MUST produce structured trade setups with institutional logic:
+    - Always include for the PRIMARY setup: entryPrice, stopLoss, takeProfits[], riskRewardRatio.
+    - Tailor to user inputs when provided (instrument, timeframe, riskLevel, strategy, positionSize, customNotes).
+    - If user inputs are missing, propose a DEFAULT PANEL across horizons:
+    Scalping (5–15m), Intraday (H1/H4), Swing (D1/W1), Position (multi-week).
+    - Contextualize each setup: macro drivers, technical structure, event risk, volatility regime, invalidation conditions.
+    - If a directional bias exists in the macro/fundamental layer, align setups unless the provided data clearly argues otherwise.
+    - Respect sourcing: narrative is anchored in provided inputs only.
+    - Tone: institutional, structured, confident.
+    - Add a disclaimer in the JSON field `disclaimer`: "Illustrative ideas, not investment advice."
 
-Purpose:
-- Explain the final decision to a beginner user in a simple, institutional way.
-- Resolve potential conflicts between: (1) macro narrative/research, and (2) quant/forecast/surface outputs.
+    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    ALIGNMENT & DECISION FRAMEWORK (MANDATORY - 2026)
+    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    You MUST use ONLY the following labels:
 
-You MUST compute and express:
-1) alignment:
-- "aligned" if macro directional bias and quant directional edge point the same way
-- "mixed" if one is supportive but weaker/uncertain
-- "divergent" if they conflict materially (opposite direction or quant edge is weak)
+    alignment (string):
+    - "fully_aligned"
+    - "directionally_aligned"
+    - "mixed"
+    - "divergent"
 
-2) verdict:
-- "recommended" only when alignment is "aligned" AND the setup has a clear quantitative edge
-- "conditional" when alignment is "mixed" OR when event risk/regime makes execution fragile
-- "no_trade" when alignment is "divergent" OR quantitative edge is not convincing
+    verdict (string):
+    - "recommended"  → only if fully_aligned AND clear quant edge
+    - "cautious"     → if directionally_aligned (direction ok but price levels diverge materially)
+    - "conditional"  → if mixed
+    - "no_trade"     → if divergent OR quant edge insufficient
 
-3) confidence_label:
-- "high" only for strong alignment + stable conditions
-- "medium" for partial alignment or moderate risk
-- "low" for divergence, high uncertainty, or event-driven risk
+    confidence_label (string):
+    - "high" | "medium" | "low"
 
-4) rationale:
-- 2 to 4 sentences maximum
-- Plain language (beginner-friendly), no jargon, no equations
-- Must reference BOTH:
-  - macro/fundamental anchor (what’s driving the thesis)
-  - quantitative validation (what the forecast/surface suggests about probability / risk)
-- If there is divergence, explicitly say: "macro view and statistical validation are not aligned" and recommend caution or no trade.
+    DIVERGENCE HANDLING RULES (MANDATORY - user protection):
+    If alignment is "divergent" OR "directionally_aligned" with a large price gap between macro narrative and quant outputs:
+    - verdict MUST be "no_trade" or at best "cautious" (never "recommended")
+    - In decision_summary.narrative (max 2–5 sentences), you MUST explicitly state that macro and quant are not aligned enough
+    AND give one clear, testable condition for re-entry consideration.
 
-5) key_risks:
-- 3–5 bullet-like short strings (as a JSON list)
-- Include event risk, volatility, liquidity/slippage, invalidation level, and regime uncertainty if relevant.
+    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    DECISION SUMMARY (MANDATORY)
+    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    You MUST include a top-level JSON field named "decision_summary" following the schema in {format_instructions}.
 
-Important:
-- Do NOT invent numeric probabilities if they are not explicitly available in FORECAST DATA or SURFACE DATA.
-- If the quant layer is missing/unavailable, set verdict="conditional" with confidence_label="low" and state that quant validation was unavailable.
-- Keep the tone institutional and calm.
+    decision_summary MUST include ALL of:
+    - alignment
+    - verdict
+    - confidence_label
+    - user_message (ONE short sentence, Telegram/push style)
+    - next_step (ONE actionable instruction for a beginner)
+    - trade_card (beginner recap)
+    - narrative (2–4 sentences, beginner-friendly)
+    - key_risks (3–5 short strings)
 
-DECISION SUMMARY RULES (MANDATORY):
-Populate decision_summary with an explicit beginner-friendly recap of the PRIMARY trade.
-- decision_summary.trade_card MUST match setups[0] EXACTLY for: direction, timeframe, horizon, entryPrice, stopLoss, takeProfits, riskRewardRatio.
-- decision_summary.narrative MUST explicitly state: direction, entry, SL, TP(s), and why (macro anchor + quant validation).
-- Add invalidation in plain language in decision_summary.trade_card.invalidation.
-- Add 3–5 key_risks (event risk, volatility regime, liquidity/slippage, invalidation trigger).
-- Add next_step: one actionable instruction for a beginner.
-If macro and quant diverge materially, set verdict="conditional" or "no_trade" and say so clearly in narrative.
+    Trade-card consistency rule (ABSOLUTE):
+    - decision_summary.trade_card MUST match setups[0] EXACTLY for:
+    direction, timeframe, horizon, entryPrice, stopLoss, takeProfits, riskRewardRatio.
+    - decision_summary.trade_card MUST include invalidation as plain-language condition.
 
+    Narrative rule:
+    - decision_summary.narrative MUST explicitly mention:
+    direction + entry + SL + TP(s)
+    AND why (macro anchor + quant validation from the provided inputs).
+    - If there is divergence: explicitly say macro and quant are not aligned, and recommend caution or no-trade.
 
--------
+    Quant-missing rule:
+    - If quant layer is missing/unavailable in the provided FORECAST/SURFACE data:
+    set verdict="no_trade" or "conditional", confidence_label="low",
+    and clearly state quant validation was unavailable.
 
-You MUST strictly follow this JSON schema:
-{format_instructions}
+    Key risks rule:
+    - Include event risk, volatility regime, liquidity/slippage, invalidation trigger, and regime uncertainty where relevant.
+    - Do NOT invent numeric probabilities if not explicitly present in the provided data.
 
-Additional rules:
-- Percentages must be numeric or strings, never symbols (no % outside quotes)
-- No trailing commas
-- No markdown
-- No text outside JSON
+    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    SCHEMA & OUTPUT RULES (ABSOLUTE)
+    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    You MUST strictly follow this JSON schema:
+    {format_instructions}
 
-Validation rules:
-- Use supports/resistances and bias from commentary if available.
-- Use fundamentals JSON values when present (e.g., CPI, NFP, rates, RSI).
-- Do NOT invent numbers if missing. Leave empty arrays.
-- If commentary bias conflicts with fundamentals, flag in 'context' and propose conservative setup.
+    Additional rules:
+    - No trailing commas
+    - No markdown
+    - No text outside JSON
+    - Do NOT invent numbers if missing; prefer empty arrays where schema allows.
 
-CRITICAL OUTPUT RULES:
-- Return RAW JSON only, no markdown, no quotes, UTF-8 safe
-- Do NOT wrap the JSON in markdown
-- Do NOT use ```json or ```
-- Do NOT add explanations or text before or after
-- The first character MUST be '{{'
-- The last character MUST be '}}'
-"""
+    Validation rules:
+    - Use supports/resistances and bias from commentary if available.
+    - Use fundamentals JSON values when present (e.g., CPI, NFP, rates, RSI).
+    - Do NOT invent numbers if missing. Leave empty arrays.
+    - If commentary bias conflicts with fundamentals, flag in 'context' and propose conservative setup.
+
+    CRITICAL OUTPUT RULES:
+    - Return RAW JSON only, no markdown, no quotes, UTF-8 safe
+    - Do NOT wrap the JSON in markdown
+    - Do NOT use ```json or ```
+    - Do NOT add explanations or text before or after
+    - The first character MUST be '{{'
+    - The last character MUST be '}}'
+    """
+
 
     user_prompt = f"""
 {(state.get("question") or "").strip()}

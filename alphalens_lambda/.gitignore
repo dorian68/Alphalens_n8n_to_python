@@ -58,3 +58,16 @@ tmp/
 *.tmp
 *.swp
 # =====================
+# Backtest cache
+# =====================
+alphalens_lambda/backtest_cache/
+alphalens_lambda/backtest_cache_hist/
+alphalens_lambda/backtest_runs/
+alphalens_lambda/market_data/
+alphalens_lambda/trade_data/
+reports/visuals/
+*.json
+*.jsonl
+*.csv
+*.html
+*.pth
