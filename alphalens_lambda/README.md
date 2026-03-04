@@ -4,6 +4,34 @@
 Ce dépôt contient le service `FastAPI` de génération de trades (fichier `app.py`) et s’appuie sur un module de backtest externe `..\backtest_module.py`.  
 L’objectif principal est de **générer des setups de trade** (ou d’exécuter des forecasts) et **backtester** ces niveaux (entry/SL/TP) sur les données Twelve Data.
 
+**Positionnement métier (résumé)**  
+Ce projet outille la **prise de décision de trading** (FX / commodities / crypto) en combinant macro, quant et gestion du risque dans un flux reproductible, puis en **backtestant** les niveaux proposés.  
+Il vise des livrables de type **plan de trade institutionnel** (macro anchor, niveaux, invalidation, risques) et des sorties normalisées pour l’automatisation.
+
+**Flux métier de bout en bout**
+1. **Ingestion marché** : OHLCV via Twelve Data + paramètres utilisateur (instrument, timeframe, risque, stratégie).
+2. **Contexte macro** : synthèse news macro + calendrier éco + recherche partenaire (ABCG) si activé.
+3. **Couche quant** : forecast probabiliste (Forecast API) + surface TP/SL (Monte Carlo) pour calibrer le risque.
+4. **Génération de setup** : LLM / heuristique / forecast → structuration en plan de trade institutionnel.
+5. **Risque & exécution** : SL/TP, risk appetite, trailing/break‑even, policy de fill, sizing.
+6. **Backtest & reporting** : simulation, métriques de performance, exports JSON/CSV, visualisations HTML.
+
+**Compétences / skills couvertes (dans ce repo)**
+- **Recherche macro & synthèse institutionnelle** (agents macro, Finnhub News + Economic Calendar).
+- **Structuration d’un plan de trade** (`InstitutionalTradePlan`) : macro anchor, setups, décision, risques, invalidation.
+- **Génération multi‑modes** : LLM (génération JSON), heuristique ATR, forecast probabiliste.
+- **Gestion du risque** : SL/TP, risk appetite, horizons, trailing/break‑even, entry expiry, fill policy.
+- **Surfaces probabilistes** : génération Monte Carlo d’une surface TP/SL (cibles de probabilité, sigma, dof).
+- **Position sizing** : fixed fractional, vol targeting, caps de taille et de leverage.
+- **Regime overlays** : filtrage et scaling selon régimes (trend/range/breakout) et signaux de contexte.
+- **Mesure de performance** : win rate, profit factor, drawdown, Sharpe/Sortino, R‑multiples, exposition.
+- **Visualisation** : trade panorama et exports dédiés au suivi et au reporting.
+
+**Périmètre & extensions (à brancher si besoin)**
+- **Valorisation d’options / greeks / volatility smile** : non implémenté dans ce repo.  
+  Possible via un moteur externe de pricing (ex: Black‑Scholes, Heston) branché au backend forecast/surface.
+- **Execution temps réel / OMS / market making** : non couverts ici, à intégrer côté exécution.
+
 **Composants principaux**
 - `app.py`  
   Entrypoint FastAPI / Lambda. Orchestre les tools (forecast, market data, surface).
