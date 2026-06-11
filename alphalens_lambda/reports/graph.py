@@ -10,8 +10,8 @@ from .formatting import (
 from .schemas import ReportRequest, ReportSection
 from .services import (
     CerebrasReportService,
-    GmailReportService,
     ReportDataService,
+    ResendReportService,
 )
 
 
@@ -34,6 +34,7 @@ class ReportState(TypedDict, total=False):
     enriched_report_text: str
     message: dict[str, Any]
     email_html: str
+    email_status: str
     gmail_status: str
     response: dict[str, Any]
 
@@ -116,16 +117,16 @@ async def build_html_email(state: ReportState) -> dict[str, str]:
     return {"email_html": html}
 
 
-async def send_gmail(state: ReportState) -> dict[str, str]:
-    await GmailReportService(get_report_settings()).send_html(
+async def send_email(state: ReportState) -> dict[str, str]:
+    await ResendReportService(get_report_settings()).send_html(
         state.get("email"), state["email_html"]
     )
-    return {"gmail_status": "SENT"}
+    return {"email_status": "SENT", "gmail_status": "SENT"}
 
 
 def finalize_response(state: ReportState) -> dict[str, dict[str, Any]]:
-    if state.get("gmail_status") != "SENT":
-        raise RuntimeError("Gmail delivery did not complete")
+    if state.get("email_status") != "SENT":
+        raise RuntimeError("Email delivery did not complete")
     return {
         "response": {
             "job_id": state.get("job_id"),
@@ -147,7 +148,7 @@ def create_report_graph():
     graph.add_node("enrich_report", enrich_report)
     graph.add_node("normalize_report_envelope", normalize_report_envelope)
     graph.add_node("build_html_email", build_html_email)
-    graph.add_node("send_gmail", send_gmail)
+    graph.add_node("send_email", send_email)
     graph.add_node("finalize_response", finalize_response)
 
     graph.add_edge(START, "normalize_request")
@@ -158,8 +159,8 @@ def create_report_graph():
     graph.add_edge("generate_base_report", "enrich_report")
     graph.add_edge("enrich_report", "normalize_report_envelope")
     graph.add_edge("normalize_report_envelope", "build_html_email")
-    graph.add_edge("build_html_email", "send_gmail")
-    graph.add_edge("send_gmail", "finalize_response")
+    graph.add_edge("build_html_email", "send_email")
+    graph.add_edge("send_email", "finalize_response")
     graph.add_edge("finalize_response", END)
     return graph.compile()
 

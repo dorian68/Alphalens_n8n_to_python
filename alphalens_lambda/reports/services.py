@@ -1,7 +1,5 @@
 import asyncio
-import base64
 from datetime import datetime, timedelta, timezone
-from email.message import EmailMessage
 import json
 from typing import Any
 
@@ -216,7 +214,7 @@ Verified data:
         )
 
     async def build_html(self, report_text: str) -> str:
-        system_prompt = """Convert the supplied report into a professional Gmail
+        system_prompt = """Convert the supplied report into a professional
 HTML email. Use inline CSS only. Convert titles to h2/h3 and bullets to ul/li.
 Output raw HTML only. The first characters must be exactly <html><body> and the
 last characters must be exactly </body></html>."""
@@ -227,9 +225,8 @@ last characters must be exactly </body></html>."""
             return fallback_html(report_text)
 
 
-class GmailReportService:
-    TOKEN_URL = "https://oauth2.googleapis.com/token"
-    SEND_URL = "https://gmail.googleapis.com/gmail/v1/users/me/messages/send"
+class ResendReportService:
+    SEND_URL = "https://api.resend.com/emails"
 
     def __init__(self, settings: ReportSettings):
         self.settings = settings
@@ -239,37 +236,29 @@ class GmailReportService:
 
     async def send_html(self, recipient: str | None, html_body: str) -> dict[str, Any]:
         required = {
-            "GMAIL_CLIENT_ID": self.settings.gmail_client_id,
-            "GMAIL_CLIENT_SECRET": self.settings.gmail_client_secret,
-            "GMAIL_REFRESH_TOKEN": self.settings.gmail_refresh_token,
+            "RESEND_API_KEY": self.settings.resend_api_key,
+            "REPORT_FROM_EMAIL": self.settings.report_from_email,
         }
         missing = [name for name, value in required.items() if not value]
         if missing:
-            raise ValueError(f"Missing Gmail configuration: {', '.join(missing)}")
+            raise ValueError(f"Missing Resend configuration: {', '.join(missing)}")
 
         async with httpx.AsyncClient(timeout=self.settings.request_timeout_seconds) as client:
-            token_response = await client.post(
-                self.TOKEN_URL,
-                data={
-                    "client_id": self.settings.gmail_client_id,
-                    "client_secret": self.settings.gmail_client_secret,
-                    "refresh_token": self.settings.gmail_refresh_token,
-                    "grant_type": "refresh_token",
-                },
-            )
-            token_response.raise_for_status()
-            access_token = token_response.json()["access_token"]
-
-            message = EmailMessage()
-            message["To"] = self.resolve_recipient(recipient)
-            message["Subject"] = "[TEST-REPORT]"
-            message.set_content("This report requires an HTML-capable email client.")
-            message.add_alternative(html_body, subtype="html")
-            raw = base64.urlsafe_b64encode(message.as_bytes()).decode("ascii")
             response = await client.post(
                 self.SEND_URL,
-                headers={"Authorization": f"Bearer {access_token}"},
-                json={"raw": raw},
+                headers={
+                    "Authorization": f"Bearer {self.settings.resend_api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "from": self.settings.report_from_email,
+                    "to": [self.resolve_recipient(recipient)],
+                    "subject": self.settings.report_email_subject,
+                    "html": html_body,
+                },
             )
         response.raise_for_status()
-        return response.json()
+        result = response.json()
+        if not isinstance(result, dict) or not result.get("id"):
+            raise ValueError("Resend did not return a message id")
+        return result

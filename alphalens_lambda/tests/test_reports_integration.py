@@ -7,14 +7,15 @@ from fastapi.testclient import TestClient
 import pytest
 
 import alphalens_lambda.app as backend
+import alphalens_lambda.reports.services as report_services
 from alphalens_lambda.reports.config import ReportSettings
 from alphalens_lambda.reports.formatting import build_sections_text, normalize_html
 from alphalens_lambda.reports.graph import normalize_request, report_graph
 from alphalens_lambda.reports.schemas import ReportSection
 from alphalens_lambda.reports.services import (
     CerebrasReportService,
-    GmailReportService,
     ReportDataService,
+    ResendReportService,
 )
 
 
@@ -195,7 +196,7 @@ def test_trade_and_macro_routing_contracts_are_unchanged(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_report_graph_uses_cerebras_data_and_sends_gmail(monkeypatch):
+async def test_report_graph_uses_cerebras_data_and_sends_email(monkeypatch):
     captured = {}
 
     async def fake_news(self):
@@ -222,14 +223,14 @@ async def test_report_graph_uses_cerebras_data_and_sends_gmail(monkeypatch):
 
     async def fake_send(self, recipient, html_body):
         captured.update(recipient=recipient, html=html_body)
-        return {"id": "gmail-id"}
+        return {"id": "resend-id"}
 
     monkeypatch.setattr(ReportDataService, "fetch_news", fake_news)
     monkeypatch.setattr(ReportDataService, "fetch_market_context", fake_market)
     monkeypatch.setattr(CerebrasReportService, "generate_base_report", fake_base)
     monkeypatch.setattr(CerebrasReportService, "enrich_report", fake_enrich)
     monkeypatch.setattr(CerebrasReportService, "build_html", fake_html)
-    monkeypatch.setattr(GmailReportService, "send_html", fake_send)
+    monkeypatch.setattr(ResendReportService, "send_html", fake_send)
 
     result = await report_graph.ainvoke({"raw_request": REPORT_PAYLOAD})
     response = result["response"]
@@ -245,18 +246,74 @@ def test_reports_use_cerebras_model_by_default():
         cerebras_api_key="test",
         finnhub_token="test",
         twelve_data_api_key="test",
-        gmail_client_id="test",
-        gmail_client_secret="test",
-        gmail_refresh_token="test",
+        resend_api_key="test",
+        report_from_email="AlphaLens Reports <AlphaLens.report@optiquant-ia.com>",
+        report_email_subject="AlphaLens Research | Market Intelligence Report",
         default_report_email="dorian.labry@gmail.com",
         cerebras_model="gpt-oss-120b",
         request_timeout_seconds=30,
     )
 
     assert CerebrasReportService(settings).settings.cerebras_model == "gpt-oss-120b"
-    assert GmailReportService(settings).resolve_recipient(None) == (
+    assert ResendReportService(settings).resolve_recipient(None) == (
         "dorian.labry@gmail.com"
     )
+
+
+@pytest.mark.asyncio
+async def test_resend_uses_branded_sender_and_subject(monkeypatch):
+    captured = {}
+
+    class FakeResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"id": "resend-message-id"}
+
+    class FakeAsyncClient:
+        def __init__(self, **kwargs):
+            captured["client_kwargs"] = kwargs
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, traceback):
+            return False
+
+        async def post(self, url, **kwargs):
+            captured.update(url=url, request=kwargs)
+            return FakeResponse()
+
+    monkeypatch.setattr(report_services.httpx, "AsyncClient", FakeAsyncClient)
+    settings = ReportSettings(
+        cerebras_api_key="test",
+        finnhub_token="test",
+        twelve_data_api_key="test",
+        resend_api_key="resend-test-key",
+        report_from_email="AlphaLens Reports <AlphaLens.report@optiquant-ia.com>",
+        report_email_subject="AlphaLens Research | Market Intelligence Report",
+        default_report_email="dorian.labry@gmail.com",
+        cerebras_model="gpt-oss-120b",
+        request_timeout_seconds=30,
+    )
+
+    result = await ResendReportService(settings).send_html(
+        "client@example.com",
+        "<html><body><p>Report</p></body></html>",
+    )
+
+    assert result == {"id": "resend-message-id"}
+    assert captured["url"] == "https://api.resend.com/emails"
+    assert captured["request"]["headers"]["Authorization"] == (
+        "Bearer resend-test-key"
+    )
+    assert captured["request"]["json"] == {
+        "from": "AlphaLens Reports <AlphaLens.report@optiquant-ia.com>",
+        "to": ["client@example.com"],
+        "subject": "AlphaLens Research | Market Intelligence Report",
+        "html": "<html><body><p>Report</p></body></html>",
+    }
 
 
 @pytest.mark.asyncio
@@ -265,9 +322,9 @@ async def test_cerebras_report_uses_verified_news_as_citation_fallback(monkeypat
         cerebras_api_key="test",
         finnhub_token="test",
         twelve_data_api_key="test",
-        gmail_client_id="test",
-        gmail_client_secret="test",
-        gmail_refresh_token="test",
+        resend_api_key="test",
+        report_from_email="AlphaLens Reports <AlphaLens.report@optiquant-ia.com>",
+        report_email_subject="AlphaLens Research | Market Intelligence Report",
         default_report_email="dorian.labry@gmail.com",
         cerebras_model="gpt-oss-120b",
         request_timeout_seconds=30,
