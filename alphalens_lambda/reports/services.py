@@ -8,8 +8,8 @@ from typing import Any
 import httpx
 from cerebras.cloud.sdk import Cerebras
 
-from alphalens_lambda.reports.config import ReportSettings
-from alphalens_lambda.reports.formatting import (
+from .config import ReportSettings
+from .formatting import (
     extract_report_envelope,
     fallback_html,
     normalize_html,

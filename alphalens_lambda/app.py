@@ -32,8 +32,12 @@ from typing import Optional, Literal, Dict, Any
 import time
 import httpx
 from langchain_core.tools import tool
-from alphalens_lambda.reports import report_graph
-from alphalens_lambda.reports.formatting import short_error as short_report_error
+try:
+    from alphalens_lambda.reports import report_graph
+    from alphalens_lambda.reports.formatting import short_error as short_report_error
+except ModuleNotFoundError:
+    from reports import report_graph
+    from reports.formatting import short_error as short_report_error
 
 
 load_dotenv()

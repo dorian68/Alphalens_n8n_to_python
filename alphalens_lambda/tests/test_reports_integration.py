@@ -1,3 +1,8 @@
+import os
+from pathlib import Path
+import subprocess
+import sys
+
 from fastapi.testclient import TestClient
 import pytest
 
@@ -50,6 +55,28 @@ class FakeGraph:
     async def ainvoke(self, state):
         self.calls.append(state)
         return self.result
+
+
+def test_app_imports_from_docker_workdir():
+    docker_workdir = Path(backend.__file__).resolve().parent
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "import app; import reports; "
+                "assert app.report_graph is reports.report_graph"
+            ),
+        ],
+        cwd=docker_workdir,
+        env=os.environ.copy(),
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
 
 
 def test_report_request_accepts_direct_and_wrapped_payloads():

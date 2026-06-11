@@ -2,13 +2,13 @@ from typing import Any, TypedDict
 
 from langgraph.graph import END, START, StateGraph
 
-from alphalens_lambda.reports.config import get_report_settings
-from alphalens_lambda.reports.formatting import (
+from .config import get_report_settings
+from .formatting import (
     build_sections_text as format_sections_text,
     json_to_readable_string,
 )
-from alphalens_lambda.reports.schemas import ReportRequest, ReportSection
-from alphalens_lambda.reports.services import (
+from .schemas import ReportRequest, ReportSection
+from .services import (
     CerebrasReportService,
     GmailReportService,
     ReportDataService,

@@ -3,7 +3,7 @@ import json
 import re
 from typing import Any
 
-from alphalens_lambda.reports.schemas import ReportSection
+from .schemas import ReportSection
 
 
 def build_sections_text(sections: list[ReportSection]) -> str:
