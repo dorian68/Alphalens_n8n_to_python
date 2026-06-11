@@ -1,6 +1,7 @@
 # from json import tool
 import os
 import json
+import logging
 from tracemalloc import start
 import httpx
 import time
@@ -31,10 +32,17 @@ from typing import Optional, Literal, Dict, Any
 import time
 import httpx
 from langchain_core.tools import tool
+try:
+    from alphalens_lambda.reports import report_graph
+    from alphalens_lambda.reports.formatting import short_error as short_report_error
+except ModuleNotFoundError:
+    from reports import report_graph
+    from reports.formatting import short_error as short_report_error
 
 
 load_dotenv()
 app = FastAPI(title="Direction AI Backend")
+logger = logging.getLogger(__name__)
 
 USE_ABCG = os.getenv("USE_ABCG", "false").lower() == "true"
 OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
@@ -2916,9 +2924,10 @@ async def run_webhook(request: Request):
 
         start = time.time()
         body = await request.json()
-        job_id = body.get("job_id")
         if isinstance(body, str):
             body = json.loads(body)
+        routed_body = body.get("body") if isinstance(body.get("body"), dict) else body
+        job_id = body.get("job_id") or routed_body.get("job_id")
 
         state = {
             **body,
@@ -2941,7 +2950,27 @@ async def run_webhook(request: Request):
         # print(body)
         # print("********************BODY********************")
 
-        if body.get("mode", "") == "trade_generation":
+        if "reports" in str(routed_body.get("type", "")).lower():
+            try:
+                report_result = await report_graph.ainvoke({"raw_request": body})
+                report_response = report_result.get("response")
+                if (
+                    not isinstance(report_response, dict)
+                    or report_response.get("message") != "SENT"
+                ):
+                    raise RuntimeError("Report graph returned an invalid response")
+                return report_response
+            except Exception as report_error:
+                logger.exception("Report workflow failed")
+                return JSONResponse(
+                    status_code=500,
+                    content={
+                        "job_id": job_id,
+                        "message": "ERROR",
+                        "error": short_report_error(report_error),
+                    },
+                )
+        elif body.get("mode", "") == "trade_generation":
             result = await build_trade2_graph().ainvoke(state)
             raw = result["trade_generation_output"]
             # print("********************RISK_SURFACE********************")
